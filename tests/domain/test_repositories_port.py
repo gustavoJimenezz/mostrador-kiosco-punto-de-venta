@@ -9,44 +9,10 @@ from __future__ import annotations
 
 import pytest
 from decimal import Decimal
-from typing import Optional
 
 from src.domain.models.product import Product
 from src.domain.ports.repositories import ProductRepository
-
-
-class InMemoryProductRepository:
-    """Implementación en memoria de ProductRepository para tests unitarios.
-
-    No requiere base de datos. Cumple el contrato definido en el puerto.
-    """
-
-    def __init__(self) -> None:
-        self._store: dict[int, Product] = {}
-        self._next_id: int = 1
-
-    def get_by_barcode(self, barcode: str) -> Optional[Product]:
-        for product in self._store.values():
-            if product.barcode == barcode:
-                return product
-        return None
-
-    def get_by_id(self, product_id: int) -> Optional[Product]:
-        return self._store.get(product_id)
-
-    def save(self, product: Product) -> Product:
-        if product.id is None:
-            product.id = self._next_id
-            self._next_id += 1
-        self._store[product.id] = product
-        return product
-
-    def search_by_name(self, query: str) -> list[Product]:
-        query_lower = query.lower()
-        return [p for p in self._store.values() if query_lower in p.name.lower()]
-
-    def list_all(self) -> list[Product]:
-        return list(self._store.values())
+from tests.unit.domain.mocks.in_memory_product_repository import InMemoryProductRepository
 
 
 def make_product(barcode: str = "7790895000115", name: str = "Alfajor Jorgito") -> Product:

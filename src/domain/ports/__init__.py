@@ -1,3 +1,4 @@
-from .repositories import ProductRepository
+from .product_repository import ProductRepository
+from .printer_base import PrinterBase
 
-__all__ = ["ProductRepository"]
+__all__ = ["ProductRepository", "PrinterBase"]
