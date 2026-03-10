@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Entorno virtual
+.venv/
+venv/
+env/
+
+# Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Variables de entorno
+.env
+.env.*
+
+# Distribución / compilación
+dist/
+build/
+*.egg-info/
+
+# Nuitka output
+*.exe
+*.dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
