@@ -27,6 +27,9 @@ build-backend = "poetry.core.masonry.api"
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-v --tb=short"
+markers = [
+    "integration: tests que requieren una base de datos MariaDB real (POS_TEST_DB_URL)",
+]
 
 [tool.coverage.run]
 source = ["src/domain"]

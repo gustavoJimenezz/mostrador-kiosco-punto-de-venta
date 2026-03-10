@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -97,20 +97,57 @@ class MariadbProductRepository:
                 f"Ya existe un producto con el código de barras '{product.barcode}'."
             ) from exc
 
-    def search_by_name(self, query: str) -> list[Product]:
-        """Busca productos cuyo nombre contiene el texto dado (case-insensitive).
+    def _build_fulltext_query(self, query: str) -> str:
+        """Convierte texto de búsqueda en expresión BOOLEAN MODE de MariaDB FullText.
 
-        Usa ``ILIKE`` (compilado como ``LOWER(name) LIKE LOWER(...)`` en
-        MariaDB) para búsqueda parcial. Para catálogos con más de 5,000
-        productos, la migración Alembic agrega un FullText index que puede
-        aprovecharse con ``MATCH ... AGAINST`` en el Ticket 2.2.
+        Cada token se convierte en un término obligatorio (+) con wildcard de
+        prefijo (*), habilitando búsqueda por prefijo dentro del índice FullText.
 
         Args:
-            query: Texto parcial del nombre a buscar. Mínimo 1 carácter.
+            query: Texto ingresado por el usuario.
+
+        Returns:
+            Expresión BOOLEAN MODE. Ejemplo: "coca cola" -> "+coca* +cola*"
+        """
+        tokens = query.strip().split()
+        return " ".join(f"+{token}*" for token in tokens if token)
+
+    def _search_by_name_fulltext(self, query: str) -> list[Product]:
+        """Búsqueda usando el índice ix_products_name_fulltext (BOOLEAN MODE).
+
+        Usa ``MATCH(name) AGAINST(:ft_query IN BOOLEAN MODE)`` con wildcard de
+        prefijo para aprovechar el índice FullText creado en la migración
+        ``1bafd69c0714``. Requiere query >= 3 chars (``ft_min_word_len=3``).
+
+        Args:
+            query: Texto con al menos 3 caracteres.
+
+        Returns:
+            Lista de hasta 50 productos que coinciden, ordenados alfabéticamente.
+        """
+        fulltext_expr = text(
+            "MATCH(name) AGAINST(:ft_query IN BOOLEAN MODE)"
+        ).bindparams(ft_query=self._build_fulltext_query(query))
+        stmt = (
+            select(Product)
+            .where(fulltext_expr)
+            .order_by(Product.name)
+            .limit(50)
+        )
+        return list(self._session.execute(stmt).scalars().all())
+
+    def _search_by_name_ilike(self, query: str) -> list[Product]:
+        """Búsqueda ILIKE (full table scan). Fallback para queries cortos.
+
+        Usada cuando el query tiene < 3 caracteres o cuando FullText retorna
+        vacío (ej: stopwords configurados en el servidor MariaDB).
+
+        Args:
+            query: Texto parcial del nombre a buscar.
 
         Returns:
             Lista de hasta 50 productos cuyo nombre contiene ``query``,
-            ordenados alfabéticamente. Puede ser vacía.
+            ordenados alfabéticamente.
         """
         stmt = (
             select(Product)
@@ -119,6 +156,31 @@ class MariadbProductRepository:
             .limit(50)
         )
         return list(self._session.execute(stmt).scalars().all())
+
+    def search_by_name(self, query: str) -> list[Product]:
+        """Busca productos por nombre usando FullText index o ILIKE como fallback.
+
+        Estrategia:
+        - Query >= 3 chars: ``MATCH...AGAINST`` BOOLEAN MODE sobre el índice
+          ``ix_products_name_fulltext`` (O(1) index lookup, meta < 50ms con 5k SKUs).
+        - Query < 3 chars: ILIKE fallback (``ft_min_word_len=3`` en MariaDB).
+        - Fallback ILIKE si FullText retorna vacío (stopwords del servidor).
+
+        Args:
+            query: Texto parcial del nombre a buscar. Mínimo 1 carácter.
+
+        Returns:
+            Lista de hasta 50 productos cuyo nombre contiene ``query``,
+            ordenados alfabéticamente. Puede ser vacía.
+        """
+        if len(query.strip()) < 3:
+            return self._search_by_name_ilike(query)
+
+        results = self._search_by_name_fulltext(query)
+        if not results:
+            return self._search_by_name_ilike(query)
+
+        return results
 
     def list_all(self) -> list[Product]:
         """Retorna todos los productos del catálogo ordenados por nombre.
