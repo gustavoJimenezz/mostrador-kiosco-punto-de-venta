@@ -62,6 +62,7 @@ alembic/              # Migraciones de DB
 1. **Calidad de Código:** Seguir Clean Code. Código modular y con responsabilidad única.
 2. **Documentación:** Cada función nueva debe incluir docstring en Python (formato Google o NumPy).
 3. **Manejo de Errores:** Priorizar manejo robusto de excepciones y validaciones de entrada en los límites del sistema (UI, importaciones, adaptadores de hardware).
+4. **Comandos Python:** Usar siempre `python3` en lugar de `python` en cualquier comando de terminal (ej: `python3 -m ...`). Para ejecutar scripts o módulos del proyecto, preferir `poetry run python3 ...`.
 
 ## Convenciones de Desarrollo
 
@@ -86,6 +87,7 @@ alembic/              # Migraciones de DB
 - Cobertura 100% en `domain/` (lógica de cálculo de precios y márgenes).
 - Tests unitarios corren en Linux con `MockRepository` en memoria.
 - Tests de integración (hardware, impresión) requieren Windows 11.
+- **Ejecutar tests siempre con Poetry:** `poetry run pytest` (nunca `python -m pytest` directamente).
 
 ## Comandos de Compilación (Windows 11)
 
