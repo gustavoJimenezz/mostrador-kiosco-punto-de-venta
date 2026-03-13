@@ -159,7 +159,10 @@ class MainWindow(QMainWindow):
         if ui_widget is None:
             raise RuntimeError(f"No se pudo cargar la interfaz: {_UI_PATH}")
 
+        # El root del .ui es QWidget (central_widget); lo usamos directamente.
         self.setCentralWidget(ui_widget)
+        self.setWindowTitle("Mostrador POS")
+        self.resize(960, 640)
 
         self._barcode_input = ui_widget.findChild(
             __import__("PySide6.QtWidgets", fromlist=["QLineEdit"]).QLineEdit,

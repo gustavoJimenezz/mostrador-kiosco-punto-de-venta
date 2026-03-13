@@ -10,7 +10,20 @@ from alembic import context
 # generar migraciones automáticas con `alembic revision --autogenerate`.
 from src.infrastructure.persistence.tables import metadata as target_metadata
 
+import os 
+from dotenv import load_dotenv # <--- Añadido
+
+# Cargar variables de entorno desde el archivo .env
+load_dotenv()
+
 config = context.config
+
+# --- LÓGICA PARA SOBRESCRIBIR LA URL CON EL .ENV ---
+db_url = os.getenv("DATABASE_URL")
+if db_url:
+    config.set_main_option("sqlalchemy.url", db_url)
+# ---------------------------------------------------
+
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
