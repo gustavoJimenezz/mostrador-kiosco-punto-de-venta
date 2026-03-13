@@ -8,6 +8,7 @@ Atajos de teclado (keyboard-first):
     F1  - Nueva venta (limpia carrito)
     F2  - Activar/desactivar búsqueda por nombre
     F4  - Confirmar venta / Cobrar
+    F9  - Importar lista de precios CSV/Excel (importación masiva)
     F10 - Cierre de caja
     Esc - Cancelar búsqueda, volver al barcode_input
     Enter (en barcode_input)  - Buscar producto por código
@@ -214,6 +215,7 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("F1"), self).activated.connect(self._on_new_sale)
         QShortcut(QKeySequence("F2"), self).activated.connect(self._toggle_search)
         QShortcut(QKeySequence("F4"), self).activated.connect(self._on_confirm_sale)
+        QShortcut(QKeySequence("F9"), self).activated.connect(self._on_open_import)
         QShortcut(QKeySequence("F10"), self).activated.connect(self._on_cash_close)
         QShortcut(QKeySequence("Escape"), self).activated.connect(self._on_escape)
 
@@ -280,6 +282,13 @@ class MainWindow(QMainWindow):
         worker.finished.connect(lambda: self._cleanup_worker(worker))
         self._active_workers.append(worker)
         worker.start()
+
+    def _on_open_import(self) -> None:
+        """F9: abre el diálogo de importación masiva de lista de precios."""
+        from src.infrastructure.ui.windows.import_dialog import ImportDialog
+
+        dialog = ImportDialog(self._session_factory, parent=self)
+        dialog.exec()
 
     def _on_cash_close(self) -> None:
         """F10: cierre de caja."""
