@@ -20,7 +20,7 @@ Workers disponibles:
     SearchByBarcodeWorker — búsqueda por código de barras.
     SearchByNameWorker    — búsqueda FullText por nombre.
     ProcessSaleWorker     — procesamiento atómico de venta.
-    ImportWorker          — importación masiva CSV/Excel (F9).
+    ImportWorker          — re-exportado desde import_worker.py (backward compat).
 """
 
 from __future__ import annotations
@@ -29,11 +29,8 @@ from typing import Callable
 
 from PySide6.QtCore import QThread, Signal
 
-from pathlib import Path
-
 from src.application.use_cases.get_product_by_code import GetProductByCode
 from src.application.use_cases.process_sale import ProcessSale
-from src.application.use_cases.update_bulk_prices import ImportResult
 from src.domain.models.product import Product
 from src.domain.models.sale import PaymentMethod, Sale
 
@@ -185,55 +182,6 @@ class ProcessSaleWorker(QThread):
             session.close()
 
 
-class ImportWorker(QThread):
-    """Worker para importación masiva de listas de precios CSV/Excel (F9).
-
-    Ejecuta ``BulkPriceImporter.parse()`` + ``UpdateBulkPrices.execute()``
-    en un hilo separado para no bloquear el hilo principal de Qt.
-
-    Signals:
-        import_completed (ImportResult): Emitida con el resultado de la importación.
-        error_occurred (str): Emitida con mensaje de error ante falla inesperada.
-
-    Args:
-        session_factory: Callable que retorna una nueva Session de SQLAlchemy.
-        file_path: Ruta al archivo CSV o Excel a importar.
-        parent: QObject padre (opcional).
-    """
-
-    import_completed = Signal(object)   # ImportResult
-    error_occurred = Signal(str)
-
-    def __init__(
-        self,
-        session_factory: Callable,
-        file_path: Path,
-        parent=None,
-    ) -> None:
-        """Inicializa el worker con la factory de sesión y la ruta del archivo.
-
-        Args:
-            session_factory: Callable que retorna una nueva Session de SQLAlchemy.
-            file_path: Ruta al archivo CSV o Excel a importar.
-            parent: QObject padre (opcional).
-        """
-        super().__init__(parent)
-        self._session_factory = session_factory
-        self._file_path = file_path
-
-    def run(self) -> None:
-        """Ejecuta el parsing y upsert en el hilo separado."""
-        session = self._session_factory()
-        try:
-            from src.application.use_cases.update_bulk_prices import UpdateBulkPrices
-            from src.infrastructure.importers.bulk_price_importer import BulkPriceImporter
-
-            parsed = BulkPriceImporter().parse(self._file_path)
-            result = UpdateBulkPrices(session).execute(parsed.valid_rows)
-            # Combinar errores de validación (parser) con resultado del use case
-            result.errors.extend(parsed.errors)
-            self.import_completed.emit(result)
-        except Exception as exc:
-            self.error_occurred.emit(str(exc))
-        finally:
-            session.close()
+# Re-exportado para backward compatibility con import_dialog.py (flujo legacy F9 modal).
+# La implementación real con column_mapping vive en import_worker.py.
+from src.infrastructure.ui.workers.import_worker import ImportWorker as ImportWorker  # noqa: F401, E501

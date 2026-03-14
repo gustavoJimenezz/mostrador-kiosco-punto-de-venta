@@ -23,6 +23,7 @@ from src.infrastructure.persistence.database import (
 )
 from src.infrastructure.persistence.mappings import configure_mappings
 from src.infrastructure.ui.app_config import configure_high_dpi
+from src.infrastructure.ui.presenters.import_presenter import ImportPresenter
 from src.infrastructure.ui.presenters.sale_presenter import SalePresenter
 from src.infrastructure.ui.windows.main_window import MainWindow
 
@@ -48,8 +49,13 @@ def main() -> int:
     app = QApplication(sys.argv)
 
     window = MainWindow(session_factory=session_factory)
+
     presenter = SalePresenter(view=window)
     window.set_presenter(presenter)
+
+    import_presenter = ImportPresenter(window.import_view, session_factory)
+    window.import_view.set_presenter(import_presenter)
+
     window.show()
 
     return app.exec()

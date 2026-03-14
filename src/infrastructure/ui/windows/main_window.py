@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QRadioButton,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -67,6 +68,15 @@ class MainWindow(QMainWindow):
         self._load_ui()
         self._setup_shortcuts()
 
+    @property
+    def import_view(self):
+        """Retorna la instancia de ImportView (pestaña de importación).
+
+        Returns:
+            ImportView insertada en el tab "📥 Importar (F9)".
+        """
+        return self._import_view
+
     def set_presenter(self, presenter) -> None:
         """Inyecta el SalePresenter en la ventana.
 
@@ -74,6 +84,14 @@ class MainWindow(QMainWindow):
             presenter: SalePresenter ya configurado con la vista.
         """
         self._presenter = presenter
+
+    def set_import_presenter(self, presenter) -> None:
+        """Inyecta el ImportPresenter en la ImportView.
+
+        Args:
+            presenter: ImportPresenter ya configurado con la ImportView.
+        """
+        self._import_view.set_presenter(presenter)
 
     # ------------------------------------------------------------------
     # ISaleView implementation
@@ -154,6 +172,8 @@ class MainWindow(QMainWindow):
 
     def _load_ui(self) -> None:
         """Carga el archivo .ui de Qt Designer y extrae los widgets."""
+        from src.infrastructure.ui.views.import_view import ImportView
+
         loader = QUiLoader()
         ui_widget = loader.load(str(_UI_PATH), self)
 
@@ -164,6 +184,14 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(ui_widget)
         self.setWindowTitle("Mostrador POS")
         self.resize(960, 640)
+
+        # Extraer QTabWidget e insertar ImportView en el tab placeholder
+        self._tab_widget = ui_widget.findChild(QTabWidget, "tab_widget")
+        tab_import = ui_widget.findChild(QWidget, "tab_import")
+        self._import_view = ImportView()
+        tab_layout = QVBoxLayout(tab_import)
+        tab_layout.setContentsMargins(0, 0, 0, 0)
+        tab_layout.addWidget(self._import_view)
 
         self._barcode_input = ui_widget.findChild(
             __import__("PySide6.QtWidgets", fromlist=["QLineEdit"]).QLineEdit,
@@ -284,11 +312,8 @@ class MainWindow(QMainWindow):
         worker.start()
 
     def _on_open_import(self) -> None:
-        """F9: abre el diálogo de importación masiva de lista de precios."""
-        from src.infrastructure.ui.windows.import_dialog import ImportDialog
-
-        dialog = ImportDialog(self._session_factory, parent=self)
-        dialog.exec()
+        """F9: navega al tab de importación masiva de lista de precios."""
+        self._tab_widget.setCurrentIndex(1)
 
     def _on_cash_close(self) -> None:
         """F10: cierre de caja."""

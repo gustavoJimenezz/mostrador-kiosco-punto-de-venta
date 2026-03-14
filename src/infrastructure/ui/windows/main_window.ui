@@ -6,164 +6,443 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>960</width>
-    <height>640</height>
+    <width>1100</width>
+    <height>680</height>
    </rect>
   </property>
-  <layout class="QVBoxLayout" name="main_layout">
+  <property name="styleSheet">
+   <string>/* BASE */
+QWidget {
+    background-color: #f9fafb;
+    color: #374151;
+    font-family: &quot;Segoe UI&quot;, &quot;Ubuntu&quot;, sans-serif;
+    font-size: 14px;
+}
+
+/* LABELS INDICATIVOS */
+QLabel#barcode_label, QLabel#search_label {
+    color: #6b7280;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 0 4px;
+}
+
+/* BARCODE INPUT */
+QLineEdit#barcode_input {
+    background-color: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 16px;
+    color: #374151;
+}
+QLineEdit#barcode_input:focus {
+    border: 2px solid #4f46e5;
+    padding: 11px 15px;
+}
+
+/* SEARCH INPUT */
+QLineEdit#search_input {
+    background-color: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 14px;
+}
+QLineEdit#search_input:focus {
+    border: 2px solid #10b981;
+    padding: 9px 13px;
+}
+
+/* SEARCH RESULTS */
+QListWidget#search_results {
+    background-color: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    outline: none;
+}
+QListWidget#search_results::item {
+    padding: 8px 12px;
+    border-radius: 6px;
+}
+QListWidget#search_results::item:hover {
+    background-color: #eef2ff;
+    color: #4f46e5;
+}
+QListWidget#search_results::item:selected {
+    background-color: #4f46e5;
+    color: #ffffff;
+}
+
+/* CART TABLE */
+QTableWidget#cart_table {
+    background-color: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    gridline-color: #f3f4f6;
+    outline: none;
+}
+QTableWidget#cart_table QHeaderView::section {
+    background-color: #f9fafb;
+    color: #6b7280;
+    font-weight: bold;
+    font-size: 11px;
+    padding: 10px 12px;
+    border: none;
+    border-bottom: 1px solid #e5e7eb;
+}
+QTableWidget#cart_table::item {
+    padding: 10px 12px;
+    border: none;
+}
+QTableWidget#cart_table::item:selected {
+    background-color: #eef2ff;
+    color: #4f46e5;
+}
+
+/* TOTAL LABEL — elemento visualmente dominante */
+QLabel#total_label {
+    background-color: #4f46e5;
+    color: #ffffff;
+    border-radius: 16px;
+    padding: 32px 24px;
+    font-size: 52px;
+    font-weight: 900;
+    min-height: 140px;
+}
+
+/* BOTONES F1, F2, F10 */
+QPushButton#btn_new_sale,
+QPushButton#btn_search,
+QPushButton#btn_cash_close {
+    background-color: #ffffff;
+    color: #374151;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 20px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    min-height: 72px;
+}
+QPushButton#btn_new_sale:hover,
+QPushButton#btn_search:hover {
+    background-color: #eef2ff;
+    border-color: #4f46e5;
+    color: #4f46e5;
+}
+QPushButton#btn_cash_close:hover {
+    background-color: #fff5f5;
+    border-color: #fca5a5;
+    color: #dc2626;
+}
+
+/* BOTÓN COBRAR (F4) — acción principal */
+QPushButton#btn_confirm {
+    background-color: #10b981;
+    color: #ffffff;
+    border: none;
+    border-radius: 12px;
+    padding: 20px 16px;
+    font-size: 15px;
+    font-weight: 800;
+    min-height: 72px;
+}
+QPushButton#btn_confirm:hover { background-color: #059669; }
+QPushButton#btn_confirm:pressed { background-color: #047857; }
+
+/* SCROLLBARS */
+QScrollBar:vertical {
+    background: transparent;
+    width: 6px;
+    margin: 0;
+}
+QScrollBar::handle:vertical {
+    background: #d1d5db;
+    border-radius: 3px;
+    min-height: 24px;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+</string>
+  </property>
+  <layout class="QVBoxLayout" name="root_layout">
+   <property name="spacing">
+    <number>0</number>
+   </property>
+   <property name="leftMargin">
+    <number>0</number>
+   </property>
+   <property name="topMargin">
+    <number>0</number>
+   </property>
+   <property name="rightMargin">
+    <number>0</number>
+   </property>
+   <property name="bottomMargin">
+    <number>0</number>
+   </property>
    <item>
-    <!-- Sección de entrada de barcode -->
-    <layout class="QHBoxLayout" name="barcode_row">
-     <item>
-      <widget class="QLabel" name="barcode_label">
-       <property name="text">
-        <string>Código:</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QLineEdit" name="barcode_input">
-       <property name="placeholderText">
-        <string>Escanear o escribir código de barras y presionar Enter...</string>
-       </property>
-       <property name="clearButtonEnabled">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-    </layout>
-   </item>
-   <item>
-    <!-- Sección de búsqueda por nombre (F2) -->
-    <layout class="QHBoxLayout" name="search_row">
-     <item>
-      <widget class="QLabel" name="search_label">
-       <property name="text">
-        <string>Buscar (F2):</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QLineEdit" name="search_input">
-       <property name="placeholderText">
-        <string>Nombre del producto...</string>
-       </property>
-       <property name="visible">
-        <bool>false</bool>
-       </property>
-      </widget>
-     </item>
-    </layout>
-   </item>
-   <item>
-    <!-- Lista de resultados de búsqueda por nombre -->
-    <widget class="QListWidget" name="search_results">
-     <property name="visible">
-      <bool>false</bool>
+    <widget class="QTabWidget" name="tab_widget">
+     <property name="currentIndex">
+      <number>0</number>
      </property>
-     <property name="maximumHeight">
-      <number>200</number>
-     </property>
+     <widget class="QWidget" name="tab_sale">
+      <attribute name="title">
+       <string>🛒 Venta</string>
+      </attribute>
+      <layout class="QHBoxLayout" name="main_layout">
+       <property name="spacing">
+        <number>12</number>
+       </property>
+       <property name="leftMargin">
+        <number>12</number>
+       </property>
+       <property name="topMargin">
+        <number>12</number>
+       </property>
+       <property name="rightMargin">
+        <number>12</number>
+       </property>
+       <property name="bottomMargin">
+        <number>12</number>
+       </property>
+       <item>
+        <!-- Panel izquierdo: entrada + carrito -->
+        <widget class="QWidget" name="left_panel">
+         <layout class="QVBoxLayout" name="left_layout">
+          <property name="spacing">
+           <number>8</number>
+          </property>
+          <property name="leftMargin">
+           <number>0</number>
+          </property>
+          <property name="topMargin">
+           <number>0</number>
+          </property>
+          <property name="rightMargin">
+           <number>0</number>
+          </property>
+          <property name="bottomMargin">
+           <number>0</number>
+          </property>
+          <item>
+           <!-- Sección de entrada de barcode -->
+           <layout class="QHBoxLayout" name="barcode_row">
+            <item>
+             <widget class="QLabel" name="barcode_label">
+              <property name="text">
+               <string>Código:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="barcode_input">
+              <property name="placeholderText">
+               <string>Escanear o escribir código de barras y presionar Enter...</string>
+              </property>
+              <property name="clearButtonEnabled">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <!-- Sección de búsqueda por nombre (F2) -->
+           <layout class="QHBoxLayout" name="search_row">
+            <item>
+             <widget class="QLabel" name="search_label">
+              <property name="text">
+               <string>Buscar (F2):</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="search_input">
+              <property name="placeholderText">
+               <string>Nombre del producto...</string>
+              </property>
+              <property name="visible">
+               <bool>false</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <!-- Lista de resultados de búsqueda por nombre -->
+           <widget class="QListWidget" name="search_results">
+            <property name="visible">
+             <bool>false</bool>
+            </property>
+            <property name="maximumHeight">
+             <number>200</number>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <!-- Tabla del carrito de compras -->
+           <widget class="QTableWidget" name="cart_table">
+            <property name="columnCount">
+             <number>4</number>
+            </property>
+            <property name="editTriggers">
+             <set>QAbstractItemView::NoEditTriggers</set>
+            </property>
+            <property name="selectionBehavior">
+             <enum>QAbstractItemView::SelectRows</enum>
+            </property>
+            <attribute name="horizontalHeaderStretchLastSection">
+             <bool>true</bool>
+            </attribute>
+            <column>
+             <property name="text">
+              <string>Producto</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Cant.</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Precio Unit.</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Subtotal</string>
+             </property>
+            </column>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <!-- Panel derecho: total + botones de acción (ancho fijo 400px) -->
+        <widget class="QWidget" name="right_panel">
+         <property name="minimumWidth">
+          <number>400</number>
+         </property>
+         <property name="maximumWidth">
+          <number>400</number>
+         </property>
+         <layout class="QVBoxLayout" name="right_layout">
+          <property name="spacing">
+           <number>12</number>
+          </property>
+          <property name="leftMargin">
+           <number>0</number>
+          </property>
+          <property name="topMargin">
+           <number>0</number>
+          </property>
+          <property name="rightMargin">
+           <number>0</number>
+          </property>
+          <property name="bottomMargin">
+           <number>0</number>
+          </property>
+          <item>
+           <!-- Label del total — elemento visualmente dominante -->
+           <widget class="QLabel" name="total_label">
+            <property name="text">
+             <string>TOTAL: $0,00</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <!-- Contenedor de botones de acción en grilla 2x2 -->
+           <widget class="QWidget" name="action_buttons_container">
+            <layout class="QGridLayout" name="buttons_grid">
+             <property name="spacing">
+              <number>8</number>
+             </property>
+             <property name="leftMargin">
+              <number>0</number>
+             </property>
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <property name="rightMargin">
+              <number>0</number>
+             </property>
+             <property name="bottomMargin">
+              <number>0</number>
+             </property>
+             <item row="0" column="0">
+              <widget class="QPushButton" name="btn_new_sale">
+               <property name="text">
+                <string>F1 - Nueva Venta</string>
+               </property>
+               <property name="shortcut">
+                <string>F1</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="1">
+              <widget class="QPushButton" name="btn_search">
+               <property name="text">
+                <string>F2 - Buscar</string>
+               </property>
+               <property name="shortcut">
+                <string>F2</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QPushButton" name="btn_cash_close">
+               <property name="text">
+                <string>F10 - Cierre Caja</string>
+               </property>
+               <property name="shortcut">
+                <string>F10</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="QPushButton" name="btn_confirm">
+               <property name="text">
+                <string>F4 - Cobrar</string>
+               </property>
+               <property name="shortcut">
+                <string>F4</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <!-- Spacer para empujar los botones hacia arriba -->
+           <spacer name="right_bottom_spacer">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>40</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tab_import">
+      <attribute name="title">
+       <string>📥 Importar (F9)</string>
+      </attribute>
+      <!-- ImportView se inserta desde main_window.py; este tab es un placeholder -->
+     </widget>
     </widget>
-   </item>
-   <item>
-    <!-- Tabla del carrito de compras -->
-    <widget class="QTableWidget" name="cart_table">
-     <property name="columnCount">
-      <number>4</number>
-     </property>
-     <property name="editTriggers">
-      <set>QAbstractItemView::NoEditTriggers</set>
-     </property>
-     <property name="selectionBehavior">
-      <enum>QAbstractItemView::SelectRows</enum>
-     </property>
-     <attribute name="horizontalHeaderStretchLastSection">
-      <bool>true</bool>
-     </attribute>
-     <column>
-      <property name="text">
-       <string>Producto</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Cant.</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Precio Unit.</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Subtotal</string>
-      </property>
-     </column>
-    </widget>
-   </item>
-   <item>
-    <!-- Label del total -->
-    <widget class="QLabel" name="total_label">
-     <property name="text">
-      <string>TOTAL: $0,00</string>
-     </property>
-     <property name="alignment">
-      <set>Qt::AlignRight|Qt::AlignVCenter</set>
-     </property>
-     <property name="font">
-      <font>
-       <pointsize>18</pointsize>
-       <bold>true</bold>
-      </font>
-     </property>
-    </widget>
-   </item>
-   <item>
-    <!-- Barra de botones con atajos F1-F10 -->
-    <layout class="QHBoxLayout" name="buttons_row">
-     <item>
-      <widget class="QPushButton" name="btn_new_sale">
-       <property name="text">
-        <string>F1 - Nueva Venta</string>
-       </property>
-       <property name="shortcut">
-        <string>F1</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="btn_search">
-       <property name="text">
-        <string>F2 - Buscar</string>
-       </property>
-       <property name="shortcut">
-        <string>F2</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="btn_confirm">
-       <property name="text">
-        <string>F4 - Cobrar</string>
-       </property>
-       <property name="shortcut">
-        <string>F4</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="btn_cash_close">
-       <property name="text">
-        <string>F10 - Cierre Caja</string>
-       </property>
-       <property name="shortcut">
-        <string>F10</string>
-       </property>
-      </widget>
-     </item>
-    </layout>
    </item>
   </layout>
  </widget>

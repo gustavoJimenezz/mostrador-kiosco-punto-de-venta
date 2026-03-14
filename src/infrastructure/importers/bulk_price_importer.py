@@ -88,6 +88,49 @@ class BulkPriceImporter:
                 f"Extensión no soportada: '{suffix}'. Use .csv, .xlsx o .xls."
             )
 
+        return self.parse_dataframe(df)
+
+    def parse_dataframe(
+        self,
+        df: pl.DataFrame,
+        column_mapping: dict[str, str] | None = None,
+    ) -> ParseResult:
+        """Valida y construye DTOs desde un DataFrame ya cargado.
+
+        Si ``column_mapping`` se provee (``{col_archivo: campo_destino}``),
+        renombra las columnas antes de validar. Las columnas mapeadas a
+        ``"(ignorar)"`` se eliminan del DataFrame. El campo destino ``net_cost``
+        se traduce internamente a ``cost_price`` para el validador.
+
+        Args:
+            df: DataFrame de Polars (todo como String).
+            column_mapping: Mapeo ``{nombre_columna_archivo: campo_destino}``.
+                            Campos destino: ``barcode``, ``name``, ``net_cost``,
+                            ``category``, ``"(ignorar)"``.
+                            Si es None, se usa el DataFrame sin modificaciones.
+
+        Returns:
+            ParseResult con filas válidas y errores acumulados.
+        """
+        if column_mapping:
+            drop_cols: list[str] = []
+            rename_map: dict[str, str] = {}
+            _ALIAS = {"net_cost": "cost_price"}
+
+            for file_col, dest_field in column_mapping.items():
+                if file_col not in df.columns:
+                    continue
+                if dest_field == "(ignorar)":
+                    drop_cols.append(file_col)
+                else:
+                    internal = _ALIAS.get(dest_field, dest_field)
+                    rename_map[file_col] = internal
+
+            if drop_cols:
+                df = df.drop([c for c in drop_cols if c in df.columns])
+            if rename_map:
+                df = df.rename(rename_map)
+
         return self._validate_and_build(df)
 
     def _validate_and_build(self, df: pl.DataFrame) -> ParseResult:
