@@ -5,6 +5,7 @@ como tab "📥 Importar (F9)". Implementa IImportView.
 
 Layout:
     1. Área de archivo     — QLabel + QLineEdit readonly + QPushButton "Seleccionar..."
+    1b. Info de formato    — QLabel HTML con resumen de formato CSV/Excel aceptado
     2. Sección de mapeo    — QGroupBox (oculta hasta cargar archivo)
        ├── QScrollArea horizontal con un QComboBox por columna del archivo
        └── QTableView para preview (QStandardItemModel, primeras 100 filas)
@@ -220,6 +221,28 @@ class ImportView(QWidget):
         self._btn_select.clicked.connect(self._on_select_clicked)
         file_row.addWidget(self._btn_select)
         root.addLayout(file_row)
+
+        # --- 1b. Texto informativo de formato ---
+        info_label = QLabel(
+            "<b>Formato aceptado:</b>"
+            "<ul style='margin:4px 0 0 0; padding-left:18px;'>"
+            "<li><b>CSV</b> — codificación UTF-8, separador coma <code>,</code> o "
+            "punto y coma <code>;</code>, primera fila = encabezados.</li>"
+            "<li><b>Excel</b> — archivos <code>.xlsx</code> o <code>.xls</code>, "
+            "primera hoja, primera fila = encabezados.</li>"
+            "</ul>"
+            "<b>Columnas requeridas:</b> <code>barcode</code> (EAN-13), "
+            "<code>name</code> (nombre del producto), <code>net_cost</code> "
+            "(costo neto en ARS, ej: <code>1500.50</code>). "
+            "Columna opcional: <code>category</code>. "
+            "El orden y nombre de columnas no importa; se mapean en el paso siguiente."
+        )
+        info_label.setWordWrap(True)
+        info_label.setStyleSheet(
+            "background:#f0f9ff; border:1px solid #bae6fd; border-radius:6px;"
+            "padding:8px 10px; color:#0c4a6e; font-size:12px;"
+        )
+        root.addWidget(info_label)
 
         # --- 2. Sección de mapeo (oculta hasta cargar archivo) ---
         self._mapping_group = QGroupBox("Mapeo de columnas")
