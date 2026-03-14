@@ -63,6 +63,7 @@ alembic/              # Migraciones de DB
 2. **Documentación:** Cada función nueva debe incluir docstring en Python (formato Google o NumPy).
 3. **Manejo de Errores:** Priorizar manejo robusto de excepciones y validaciones de entrada en los límites del sistema (UI, importaciones, adaptadores de hardware).
 4. **Comandos Python:** Usar siempre `python3` en lugar de `python` en cualquier comando de terminal (ej: `python3 -m ...`). Para ejecutar scripts o módulos del proyecto, preferir `poetry run python3 ...`.
+5. **Skill `committing`:** No invocar el skill `/committing` de forma automática. Ejecutarlo solo cuando el usuario lo solicite explícitamente.
 
 ## Convenciones de Desarrollo
 

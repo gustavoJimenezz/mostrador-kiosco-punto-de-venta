@@ -22,6 +22,7 @@ from src.infrastructure.persistence.database import (
     create_session_factory,
 )
 from src.infrastructure.persistence.mappings import configure_mappings
+from src.infrastructure.ui.app_config import configure_high_dpi
 from src.infrastructure.ui.presenters.sale_presenter import SalePresenter
 from src.infrastructure.ui.windows.main_window import MainWindow
 
@@ -32,6 +33,9 @@ def main() -> int:
     Returns:
         Código de salida de la aplicación Qt (0 = normal, != 0 = error).
     """
+    # Debe ejecutarse antes de instanciar QApplication.
+    configure_high_dpi()
+
     configure_mappings()
 
     database_url = os.environ.get(
