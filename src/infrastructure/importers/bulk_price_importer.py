@@ -247,6 +247,8 @@ class BulkPriceImporter:
             )
             return
 
+        category_name = (row_data.get("category") or "").strip()
+
         result.valid_rows.append(
             ProductImportRow(
                 barcode=barcode,
@@ -256,6 +258,7 @@ class BulkPriceImporter:
                 stock=stock,
                 min_stock=min_stock,
                 source_row=row_number,
+                category_name=category_name,
             )
         )
 

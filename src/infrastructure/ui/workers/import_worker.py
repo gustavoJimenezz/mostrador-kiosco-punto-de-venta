@@ -132,6 +132,7 @@ class ImportWorker(QThread):
 
             from src.application.use_cases.update_bulk_prices import UpdateBulkPrices
             from src.infrastructure.importers.bulk_price_importer import BulkPriceImporter
+            from src.infrastructure.persistence.mariadb_category_repository import MariaDbCategoryRepository
 
             self.progress_updated.emit(10)
 
@@ -151,7 +152,8 @@ class ImportWorker(QThread):
 
             self.progress_updated.emit(70)
 
-            result = UpdateBulkPrices(session).execute(parsed.valid_rows)
+            category_repo = MariaDbCategoryRepository(session)
+            result = UpdateBulkPrices(session, category_repo).execute(parsed.valid_rows)
             result.errors.extend(parsed.errors)
 
             self.progress_updated.emit(100)

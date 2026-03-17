@@ -20,7 +20,7 @@ from __future__ import annotations
 import datetime
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import select
 
@@ -28,6 +28,7 @@ from src.infrastructure.persistence.tables import price_history_table, products_
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
+    from src.domain.ports.category_repository import CategoryRepository
 
 
 @dataclass
@@ -51,6 +52,7 @@ class ProductImportRow:
     stock: int
     min_stock: int
     source_row: int
+    category_name: str = ""
 
 
 @dataclass
@@ -107,13 +109,20 @@ class UpdateBulkPrices:
         session: Sesión SQLAlchemy activa. El caller es responsable de cerrarla.
     """
 
-    def __init__(self, session: Session) -> None:
+    def __init__(
+        self,
+        session: Session,
+        category_repo: Optional[CategoryRepository] = None,
+    ) -> None:
         """Inicializa el use case con la sesión de base de datos.
 
         Args:
             session: Sesión SQLAlchemy 2.0 activa.
+            category_repo: Repositorio de categorías para resolver nombre→id.
+                Si es None, ``category_id`` se establece siempre como NULL.
         """
         self._session = session
+        self._category_repo = category_repo
 
     def execute(self, rows: list[ProductImportRow]) -> ImportResult:
         """Ejecuta el upsert masivo.
@@ -134,6 +143,13 @@ class UpdateBulkPrices:
         rows = list(rows_by_barcode.values())
         all_barcodes = list(rows_by_barcode.keys())
 
+        # --- 0. Cargar mapa de categorías (1 SELECT, resolución en memoria) ---
+        category_map: dict[str, int] = {}
+        if self._category_repo:
+            for cat in self._category_repo.list_all():
+                if cat.id is not None:
+                    category_map[cat.name.strip().lower()] = cat.id
+
         # --- 1. Consulta masiva: qué barcodes ya existen ---
         stmt = select(
             products_table.c.id,
@@ -148,9 +164,12 @@ class UpdateBulkPrices:
 
         # --- 2. Separar en nuevos vs. existentes ---
         new_products: list[dict] = []
-        updates: list[tuple[str, dict, ProductImportRow]] = []  # (barcode, existing_data, row)
+        updates: list[tuple[str, dict, ProductImportRow, Optional[int]]] = []  # (barcode, existing_data, row, category_id)
 
         for row in rows:
+            cat_key = row.category_name.strip().lower()
+            category_id = category_map.get(cat_key) if cat_key else None
+
             if row.barcode not in existing:
                 new_products.append(
                     {
@@ -160,10 +179,11 @@ class UpdateBulkPrices:
                         "margin_percent": row.margin_percent,
                         "stock": row.stock,
                         "min_stock": row.min_stock,
+                        "category_id": category_id,
                     }
                 )
             else:
-                updates.append((row.barcode, existing[row.barcode], row))
+                updates.append((row.barcode, existing[row.barcode], row, category_id))
 
         # --- 3. INSERT masivo de productos nuevos ---
         if new_products:
@@ -174,7 +194,7 @@ class UpdateBulkPrices:
         now = datetime.datetime.now()
         history_entries: list[dict] = []
 
-        for barcode, existing_data, row in updates:
+        for barcode, existing_data, row, category_id in updates:
             old_cost = Decimal(str(existing_data["current_cost"]))
 
             if old_cost == row.cost_price:
@@ -189,6 +209,7 @@ class UpdateBulkPrices:
                     margin_percent=row.margin_percent,
                     stock=row.stock,
                     min_stock=row.min_stock,
+                    category_id=category_id,
                 )
             )
 

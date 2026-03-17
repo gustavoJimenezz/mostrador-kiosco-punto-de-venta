@@ -27,6 +27,17 @@ from src.domain.models.sale import PaymentMethod
 metadata = MetaData()
 
 # ---------------------------------------------------------------------------
+# categories — Categorías de productos (ej: Golosinas, Bebidas)
+# ---------------------------------------------------------------------------
+categories_table = Table(
+    "categories",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("name", String(100), nullable=False, unique=True),
+    Index("ix_categories_name", "name"),
+)
+
+# ---------------------------------------------------------------------------
 # products — Catálogo de productos del kiosco
 # ---------------------------------------------------------------------------
 products_table = Table(
@@ -39,7 +50,12 @@ products_table = Table(
     Column("margin_percent", Numeric(5, 2), nullable=False),
     Column("stock", Integer, nullable=False, server_default="0"),
     Column("min_stock", Integer, nullable=False, server_default="0"),
-    Column("category_id", Integer, nullable=True),
+    Column(
+        "category_id",
+        Integer,
+        ForeignKey("categories.id", ondelete="SET NULL"),
+        nullable=True,
+    ),
     # Índice explícito en barcode para búsqueda O(log n) por EAN-13.
     # El FullText index en 'name' se agrega en la migración Alembic con DDL
     # específico de MariaDB: CREATE FULLTEXT INDEX ix_products_name ON products(name)

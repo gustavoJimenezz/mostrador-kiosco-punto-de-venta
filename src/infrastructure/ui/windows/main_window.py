@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtGui import QCloseEvent, QKeySequence, QShortcut
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtWidgets import (
     QDialog,
@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QListWidgetItem,
     QMainWindow,
+    QMessageBox,
     QRadioButton,
     QTabWidget,
     QVBoxLayout,
@@ -335,6 +336,62 @@ class MainWindow(QMainWindow):
         """Escape: cancela búsqueda y vuelve el foco al barcode_input."""
         self._search_input.setVisible(False)
         self._search_results.setVisible(False)
+        self._barcode_input.setFocus()
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """Intercepta el cierre para requerir confirmación explícita del usuario.
+
+        Muestra un QMessageBox de tipo Warning con botones "Salir" y "Cancelar".
+        Si hay una venta en curso, el mensaje advierte sobre pérdida de datos.
+        Toda ruta de cierre (Alt+F4, botón X, sys.exit) pasa por este modal.
+
+        Args:
+            event: Evento de cierre Qt. Se acepta o ignora según la elección.
+        """
+        sale_in_progress = (
+            self._presenter.has_active_sale_items() if self._presenter else False
+        )
+
+        if sale_in_progress:
+            message = (
+                "Hay una venta en curso. "
+                "Si sale ahora, los datos se perderán.\n"
+                "¿Desea salir de todos modos?"
+            )
+        else:
+            message = "¿Está seguro que desea salir del sistema?"
+
+        dialog = QMessageBox(self)
+        dialog.setIcon(QMessageBox.Icon.Warning)
+        dialog.setWindowTitle("Confirmar cierre")
+        dialog.setText(message)
+
+        btn_exit = dialog.addButton("Salir", QMessageBox.ButtonRole.AcceptRole)
+        dialog.addButton("Cancelar", QMessageBox.ButtonRole.RejectRole)
+        dialog.exec()
+
+        if dialog.clickedButton() == btn_exit:
+            self._shutdown_database()
+            event.accept()
+        else:
+            event.ignore()
+            self._restore_barcode_focus()
+
+    def _shutdown_database(self) -> None:
+        """Detiene el motor de base de datos si está activo.
+
+        Invoca el shutdown del DatabaseLauncher solo si fue inyectado
+        previamente mediante ``self._db_launcher``.
+        """
+        if hasattr(self, "_db_launcher"):
+            self._db_launcher.stop()
+
+    def _restore_barcode_focus(self) -> None:
+        """Devuelve el foco al campo de lectura de código de barras.
+
+        Llamado tras cancelar el modal de cierre para evitar que el lector
+        de barras pierda caracteres al retornar el foco a la ventana.
+        """
         self._barcode_input.setFocus()
 
     def _cleanup_worker(self, worker) -> None:

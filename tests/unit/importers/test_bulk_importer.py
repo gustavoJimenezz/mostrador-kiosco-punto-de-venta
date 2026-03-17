@@ -32,6 +32,8 @@ from src.application.use_cases.update_bulk_prices import (
     UpdateBulkPrices,
 )
 from src.infrastructure.importers.bulk_price_importer import BulkPriceImporter
+from tests.unit.domain.mocks.in_memory_category_repository import InMemoryCategoryRepository
+from src.domain.models.category import Category
 
 
 # ---------------------------------------------------------------------------
@@ -321,7 +323,12 @@ class TestParseDecimal:
 # Tests: UpdateBulkPrices (mock de sesión SQLAlchemy)
 # ---------------------------------------------------------------------------
 
-def _make_row(barcode: str, cost: str = "1000", i: int = 1) -> ProductImportRow:
+def _make_row(
+    barcode: str,
+    cost: str = "1000",
+    i: int = 1,
+    category_name: str = "",
+) -> ProductImportRow:
     """Factory de ProductImportRow para tests."""
     return ProductImportRow(
         barcode=barcode,
@@ -331,6 +338,7 @@ def _make_row(barcode: str, cost: str = "1000", i: int = 1) -> ProductImportRow:
         stock=10,
         min_stock=1,
         source_row=i + 1,
+        category_name=category_name,
     )
 
 
@@ -415,3 +423,124 @@ class TestUpdateBulkPrices:
         assert result.skipped == 1
         assert result.updated == 0
         session.commit.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Tests: columna 'category' en BulkPriceImporter
+# ---------------------------------------------------------------------------
+
+class TestBulkPriceImporterCategory:
+    """Tests de extracción del campo category en _process_row (Ticket 19)."""
+
+    def test_columna_category_mapeada_se_extrae(self) -> None:
+        """Columna 'category' mapeada → ProductImportRow.category_name se extrae."""
+        import polars as pl
+
+        df = pl.DataFrame({
+            "barcode": ["7790001000001"],
+            "name": ["Coca Cola 500ml"],
+            "cost_price": ["1250"],
+            "category": ["Bebidas"],
+        })
+
+        result = BulkPriceImporter().parse_dataframe(df)
+
+        assert len(result.valid_rows) == 1
+        assert result.valid_rows[0].category_name == "Bebidas"
+
+    def test_sin_columna_category_category_name_vacio(self) -> None:
+        """Sin columna 'category' en el DataFrame → category_name='' sin error."""
+        import polars as pl
+
+        df = pl.DataFrame({
+            "barcode": ["7790001000001"],
+            "name": ["Coca Cola 500ml"],
+            "cost_price": ["1250"],
+        })
+
+        result = BulkPriceImporter().parse_dataframe(df)
+
+        assert len(result.valid_rows) == 1
+        assert result.valid_rows[0].category_name == ""
+        assert result.errors == []
+
+
+# ---------------------------------------------------------------------------
+# Tests: resolución nombre→id en UpdateBulkPrices con InMemoryCategoryRepository
+# ---------------------------------------------------------------------------
+
+class TestUpdateBulkPricesConCategorias:
+    """Tests de resolución de category_name → category_id (Ticket 19)."""
+
+    def _make_session_insert(self):
+        """Sesión mock que simula un SELECT vacío (productos nuevos) y permite INSERT."""
+        session = MagicMock()
+        session.execute.side_effect = [iter([]), MagicMock()]
+        return session
+
+    def test_categoria_existente_resuelve_id(self) -> None:
+        """UpdateBulkPrices con repo resuelve nombre de categoría → category_id correcto."""
+        category_repo = InMemoryCategoryRepository()
+        golosinas = category_repo.save(Category(name="Golosinas"))
+
+        session = self._make_session_insert()
+        row = _make_row("7790001000001", category_name="Golosinas")
+
+        UpdateBulkPrices(session, category_repo).execute([row])
+
+        # Verificar que el INSERT incluyó category_id correcto
+        insert_call_args = session.execute.call_args_list[1]
+        values_list = insert_call_args[0][1]  # segundo argumento posicional = lista de dicts
+        assert values_list[0]["category_id"] == golosinas.id
+
+    def test_categoria_case_insensitive_y_trim(self) -> None:
+        """'GOLOSINAS', 'golosinas' y '  Golosinas  ' resuelven al mismo category_id."""
+        category_repo = InMemoryCategoryRepository()
+        golosinas = category_repo.save(Category(name="Golosinas"))
+
+        for name_variant in ["GOLOSINAS", "golosinas", "  Golosinas  "]:
+            session = self._make_session_insert()
+            row = _make_row("7790001000001", category_name=name_variant)
+            UpdateBulkPrices(session, category_repo).execute([row])
+
+            insert_call_args = session.execute.call_args_list[1]
+            values_list = insert_call_args[0][1]
+            assert values_list[0]["category_id"] == golosinas.id, (
+                f"Falló para variant='{name_variant}'"
+            )
+
+    def test_categoria_inexistente_category_id_none(self) -> None:
+        """Categoría no registrada → category_id=None, sin error."""
+        category_repo = InMemoryCategoryRepository()
+        # No se agrega ninguna categoría al repo
+
+        session = self._make_session_insert()
+        row = _make_row("7790001000001", category_name="CategoriaInexistente")
+        UpdateBulkPrices(session, category_repo).execute([row])
+
+        insert_call_args = session.execute.call_args_list[1]
+        values_list = insert_call_args[0][1]
+        assert values_list[0]["category_id"] is None
+
+    def test_category_name_vacio_category_id_none(self) -> None:
+        """category_name vacío → category_id=None, sin error."""
+        category_repo = InMemoryCategoryRepository()
+        category_repo.save(Category(name="Golosinas"))
+
+        session = self._make_session_insert()
+        row = _make_row("7790001000001", category_name="")
+        UpdateBulkPrices(session, category_repo).execute([row])
+
+        insert_call_args = session.execute.call_args_list[1]
+        values_list = insert_call_args[0][1]
+        assert values_list[0]["category_id"] is None
+
+    def test_sin_category_repo_category_id_none(self) -> None:
+        """Sin category_repo (None) → category_id=None para todos los productos."""
+        session = self._make_session_insert()
+        row = _make_row("7790001000001", category_name="Golosinas")
+        UpdateBulkPrices(session, category_repo=None).execute([row])
+
+        insert_call_args = session.execute.call_args_list[1]
+        values_list = insert_call_args[0][1]
+        assert values_list[0]["category_id"] is None

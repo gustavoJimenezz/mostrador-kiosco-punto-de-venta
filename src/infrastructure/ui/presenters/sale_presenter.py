@@ -243,6 +243,17 @@ class SalePresenter:
     # Consultas de estado (solo lectura, para MainWindow)
     # ------------------------------------------------------------------
 
+    def has_active_sale_items(self) -> bool:
+        """Retorna True si hay ítems cargados en el carrito actual.
+
+        Usado por MainWindow para adaptar el mensaje del modal de confirmación
+        de cierre: si hay venta en curso, advierte sobre pérdida de datos.
+
+        Returns:
+            bool: True si el carrito tiene al menos un producto.
+        """
+        return bool(self._cart)
+
     def get_cart(self) -> dict[int, tuple[Product, int]]:
         """Retorna una copia del carrito actual.
 
