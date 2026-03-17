@@ -25,6 +25,7 @@ from src.infrastructure.persistence.database import (
 from src.infrastructure.persistence.mappings import configure_mappings
 from src.infrastructure.ui.app_config import configure_high_dpi
 from src.infrastructure.ui.presenters.import_presenter import ImportPresenter
+from src.infrastructure.ui.presenters.product_presenter import ProductPresenter
 from src.infrastructure.ui.presenters.sale_presenter import SalePresenter
 from src.infrastructure.ui.windows.main_window import MainWindow
 
@@ -58,6 +59,9 @@ def main() -> int:
 
     import_presenter = ImportPresenter(window.import_view, session_factory)
     window.import_view.set_presenter(import_presenter)
+
+    product_presenter = ProductPresenter(view=window.product_management_view)
+    window.set_product_presenter(product_presenter)
 
     window.show()
 

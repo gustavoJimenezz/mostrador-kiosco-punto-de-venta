@@ -78,6 +78,15 @@ class MainWindow(QMainWindow):
         """
         return self._import_view
 
+    @property
+    def product_management_view(self):
+        """Retorna la instancia de ProductManagementView (pestaña de productos).
+
+        Returns:
+            ProductManagementView insertada en el tab "Productos (F5)".
+        """
+        return self._product_management_view
+
     def set_presenter(self, presenter) -> None:
         """Inyecta el SalePresenter en la ventana.
 
@@ -93,6 +102,14 @@ class MainWindow(QMainWindow):
             presenter: ImportPresenter ya configurado con la ImportView.
         """
         self._import_view.set_presenter(presenter)
+
+    def set_product_presenter(self, presenter) -> None:
+        """Inyecta el ProductPresenter en la ProductManagementView.
+
+        Args:
+            presenter: ProductPresenter ya configurado con la vista.
+        """
+        self._product_management_view.set_presenter(presenter)
 
     # ------------------------------------------------------------------
     # ISaleView implementation
@@ -194,6 +211,17 @@ class MainWindow(QMainWindow):
         tab_layout.setContentsMargins(0, 0, 0, 0)
         tab_layout.addWidget(self._import_view)
 
+        # Tab 2: Gestión de Productos (F5) — construido programáticamente
+        from src.infrastructure.ui.views.product_management_view import (
+            ProductManagementView,
+        )
+
+        self._product_management_view = ProductManagementView(
+            session_factory=self._session_factory
+        )
+        self._tab_widget.addTab(self._product_management_view, "Productos (F5)")
+        self._tab_widget.currentChanged.connect(self._on_tab_changed)
+
         self._barcode_input = ui_widget.findChild(
             __import__("PySide6.QtWidgets", fromlist=["QLineEdit"]).QLineEdit,
             "barcode_input",
@@ -244,6 +272,7 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("F1"), self).activated.connect(self._on_new_sale)
         QShortcut(QKeySequence("F2"), self).activated.connect(self._toggle_search)
         QShortcut(QKeySequence("F4"), self).activated.connect(self._on_confirm_sale)
+        QShortcut(QKeySequence("F5"), self).activated.connect(self._on_open_products)
         QShortcut(QKeySequence("F9"), self).activated.connect(self._on_open_import)
         QShortcut(QKeySequence("F10"), self).activated.connect(self._on_cash_close)
         QShortcut(QKeySequence("Escape"), self).activated.connect(self._on_escape)
@@ -312,9 +341,23 @@ class MainWindow(QMainWindow):
         self._active_workers.append(worker)
         worker.start()
 
+    def _on_open_products(self) -> None:
+        """F5: navega al tab de gestión de productos."""
+        self._tab_widget.setCurrentIndex(2)
+        self._product_management_view.on_view_activated()
+
     def _on_open_import(self) -> None:
         """F9: navega al tab de importación masiva de lista de precios."""
         self._tab_widget.setCurrentIndex(1)
+
+    def _on_tab_changed(self, index: int) -> None:
+        """Dispara on_view_activated al cambiar al tab de productos.
+
+        Args:
+            index: Índice del tab activado.
+        """
+        if index == 2:
+            self._product_management_view.on_view_activated()
 
     def _on_cash_close(self) -> None:
         """F10: cierre de caja."""
