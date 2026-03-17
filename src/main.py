@@ -15,6 +15,7 @@ from __future__ import annotations
 import os
 import sys
 
+from dotenv import load_dotenv
 from PySide6.QtWidgets import QApplication
 
 from src.infrastructure.persistence.database import (
@@ -34,6 +35,8 @@ def main() -> int:
     Returns:
         Código de salida de la aplicación Qt (0 = normal, != 0 = error).
     """
+    load_dotenv()
+
     # Debe ejecutarse antes de instanciar QApplication.
     configure_high_dpi()
 

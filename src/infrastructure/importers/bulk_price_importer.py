@@ -32,6 +32,9 @@ import polars as pl
 from src.application.use_cases.update_bulk_prices import ImportRowError, ProductImportRow
 
 _REQUIRED_COLUMNS = {"barcode", "name", "cost_price"}
+_UNASSIGNED = "(sin asignar)"
+_IGNORE = "(ignorar)"
+
 _OPTIONAL_DEFAULTS: dict[str, str] = {
     "margin_percent": "30",   # Entero; _parse_decimal lo convierte a Decimal("30")
     "stock": "0",
@@ -97,37 +100,33 @@ class BulkPriceImporter:
     ) -> ParseResult:
         """Valida y construye DTOs desde un DataFrame ya cargado.
 
-        Si ``column_mapping`` se provee (``{col_archivo: campo_destino}``),
-        renombra las columnas antes de validar. Las columnas mapeadas a
-        ``"(ignorar)"`` se eliminan del DataFrame. El campo destino ``net_cost``
+        Si ``column_mapping`` se provee (``{campo_destino: col_archivo}``),
+        renombra las columnas antes de validar. Las entradas cuya columna sea
+        ``_UNASSIGNED`` o ``_IGNORE`` se omiten. El campo destino ``net_cost``
         se traduce internamente a ``cost_price`` para el validador.
 
         Args:
             df: DataFrame de Polars (todo como String).
-            column_mapping: Mapeo ``{nombre_columna_archivo: campo_destino}``.
+            column_mapping: Mapeo ``{campo_destino: nombre_columna_archivo}``.
                             Campos destino: ``barcode``, ``name``, ``net_cost``,
-                            ``category``, ``"(ignorar)"``.
+                            ``category``.
                             Si es None, se usa el DataFrame sin modificaciones.
 
         Returns:
             ParseResult con filas válidas y errores acumulados.
         """
         if column_mapping:
-            drop_cols: list[str] = []
             rename_map: dict[str, str] = {}
             _ALIAS = {"net_cost": "cost_price"}
 
-            for file_col, dest_field in column_mapping.items():
+            for dest_field, file_col in column_mapping.items():
+                if file_col in {_UNASSIGNED, _IGNORE, ""}:
+                    continue
                 if file_col not in df.columns:
                     continue
-                if dest_field == "(ignorar)":
-                    drop_cols.append(file_col)
-                else:
-                    internal = _ALIAS.get(dest_field, dest_field)
-                    rename_map[file_col] = internal
+                internal = _ALIAS.get(dest_field, dest_field)
+                rename_map[file_col] = internal
 
-            if drop_cols:
-                df = df.drop([c for c in drop_cols if c in df.columns])
             if rename_map:
                 df = df.rename(rename_map)
 

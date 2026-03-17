@@ -6,28 +6,28 @@ como tab "📥 Importar (F9)". Implementa IImportView.
 Layout:
     1. Área de archivo     — QLabel + QLineEdit readonly + QPushButton "Seleccionar..."
     1b. Info de formato    — QLabel HTML con resumen de formato CSV/Excel aceptado
+    1c. Banner de estado   — QLabel dinámico (amarillo/rojo/verde según mapeo)
     2. Sección de mapeo    — QGroupBox (oculta hasta cargar archivo)
-       ├── QScrollArea horizontal con un QComboBox por columna del archivo
+       ├── _MappingTableWidget: 4 filas fijas (barcode, name, net_cost, category)
        └── QTableView para preview (QStandardItemModel, primeras 100 filas)
     3. Footer de progreso  — QProgressBar (0–100) + QLabel multiline de estado
     4. QPushButton "Importar" — deshabilitado hasta mapeo mínimo válido
 
 Señales emitidas (conectadas al ImportPresenter desde set_presenter()):
     file_selected(Path)     — cuando el usuario confirma la selección de archivo
-    import_requested(dict)  — cuando pulsa "Importar"; dict = {col_archivo: campo}
-
-Campos destino en los QComboBox:
-    "(ignorar)", "barcode", "name", "net_cost", "category"
+    import_requested(dict)  — cuando pulsa "Importar"; dict = {campo_destino: col_archivo}
 """
 
 from __future__ import annotations
 
+import unicodedata
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import Signal
-from PySide6.QtGui import QStandardItem, QStandardItemModel
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QFont, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QComboBox,
     QFileDialog,
     QGroupBox,
@@ -36,16 +36,137 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QProgressBar,
     QPushButton,
-    QScrollArea,
     QSizePolicy,
     QTableView,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
-_FIELD_OPTIONS = ["(ignorar)", "barcode", "name", "net_cost", "category"]
-_DEFAULT_COLUMN_WIDTH = 130
-_REQUIRED_FIELDS = {"barcode", "name", "net_cost"}
+from src.infrastructure.ui.presenters.import_presenter import (
+    MappingStatus,
+    _AUTOMAP_ALIASES,
+)
+
+_DEST_FIELDS: list[tuple[str, bool]] = [
+    ("barcode", True),
+    ("name", True),
+    ("net_cost", True),
+    ("category", False),
+]
+_UNASSIGNED = "(sin asignar)"
+_IGNORE = "(ignorar)"
+
+
+def _normalize(s: str) -> str:
+    """Normaliza un string eliminando diacríticos y convirtiendo a minúsculas.
+
+    Args:
+        s: String a normalizar.
+
+    Returns:
+        String en minúsculas sin caracteres diacríticos.
+    """
+    return "".join(
+        c
+        for c in unicodedata.normalize("NFD", s.lower())
+        if unicodedata.category(c) != "Mn"
+    )
+
+
+class _MappingTableWidget(QTableWidget):
+    """Tabla de 4 filas fijas para mapear campos destino a columnas del archivo.
+
+    Cada fila corresponde a un campo destino (barcode, name, net_cost, category).
+    La columna 1 muestra un QComboBox con las columnas del archivo cargado.
+    Los campos requeridos se muestran en negrita con asterisco.
+
+    Signals:
+        mapping_changed: Emitida cuando el usuario cambia algún combo.
+    """
+
+    mapping_changed = Signal()
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(len(_DEST_FIELDS), 2, parent)
+        self._setup_table()
+
+    def _setup_table(self) -> None:
+        """Inicializa cabeceras, items y combos de la tabla."""
+        self.setHorizontalHeaderLabels(["Campo destino", "Columna del archivo"])
+        self.verticalHeader().setVisible(False)
+        self.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.setSelectionMode(QAbstractItemView.NoSelection)
+        self.horizontalHeader().setStretchLastSection(True)
+
+        for row_idx, (field_name, required) in enumerate(_DEST_FIELDS):
+            label = f"{field_name} *" if required else field_name
+            item = QTableWidgetItem(label)
+            if required:
+                font = QFont()
+                font.setBold(True)
+                item.setFont(font)
+            self.setItem(row_idx, 0, item)
+
+            combo = QComboBox()
+            combo.addItem(_UNASSIGNED)
+            combo.currentIndexChanged.connect(self.mapping_changed)
+            self.setCellWidget(row_idx, 1, combo)
+
+    def populate(self, headers: list[str]) -> None:
+        """Repopula todos los combos con las columnas del archivo.
+
+        Args:
+            headers: Nombres de columnas del archivo cargado.
+        """
+        options = [_UNASSIGNED] + headers
+        for row_idx in range(self.rowCount()):
+            combo = self.cellWidget(row_idx, 1)
+            if combo is not None:
+                combo.blockSignals(True)
+                combo.clear()
+                combo.addItems(options)
+                combo.blockSignals(False)
+
+    def auto_detect(self, headers: list[str]) -> None:
+        """Intenta pre-seleccionar combos basándose en alias conocidos de los headers.
+
+        Usa ``_AUTOMAP_ALIASES`` y normalización sin acentos para la detección.
+        Si encuentra un alias coincidente, pre-selecciona el combo correspondiente.
+
+        Args:
+            headers: Nombres de columnas del archivo cargado.
+        """
+        norm_to_orig = {_normalize(h): h for h in headers}
+        for row_idx, (field_name, _) in enumerate(_DEST_FIELDS):
+            aliases = _AUTOMAP_ALIASES.get(field_name, set())
+            combo = self.cellWidget(row_idx, 1)
+            if combo is None:
+                continue
+            combo.blockSignals(True)
+            for alias in aliases:
+                norm_alias = _normalize(alias)
+                if norm_alias in norm_to_orig:
+                    original = norm_to_orig[norm_alias]
+                    idx = combo.findText(original)
+                    if idx >= 0:
+                        combo.setCurrentIndex(idx)
+                    break
+            combo.blockSignals(False)
+
+    def get_mapping(self) -> dict[str, str]:
+        """Retorna el mapeo actual ``{campo_destino: columna_del_archivo}``.
+
+        Returns:
+            Dict con los 4 campos destino y la columna asignada o ``_UNASSIGNED``.
+        """
+        result: dict[str, str] = {}
+        for row_idx, (field_name, _) in enumerate(_DEST_FIELDS):
+            combo = self.cellWidget(row_idx, 1)
+            if combo is not None:
+                result[field_name] = combo.currentText()
+        return result
 
 
 class ImportView(QWidget):
@@ -59,14 +180,11 @@ class ImportView(QWidget):
     """
 
     file_selected = Signal(object)    # Path
-    import_requested = Signal(dict)   # {col_archivo: campo_destino}
+    import_requested = Signal(dict)   # {campo_destino: col_archivo}
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self._combos: list[QComboBox] = []
-        self._current_headers: list[str] = []
         self._build_ui()
-        self._setup_scroll_sync()
 
     def set_presenter(self, presenter) -> None:
         """Inyecta el ImportPresenter y conecta las señales Qt.
@@ -98,7 +216,6 @@ class ImportView(QWidget):
         Args:
             visible: True para mostrar, False para ocultar.
             value: Valor 0–100. Si es -1, no se modifica el valor actual.
-                   Si es 0 con visible=True sin valor previo, muestra como indeterminado.
         """
         self._progress.setVisible(visible)
         if visible and value >= 0:
@@ -129,40 +246,41 @@ class ImportView(QWidget):
                 f"Mapeo de columnas ({row_count} filas en preview)"
             )
 
-    def show_column_mapping(self, headers: list[str]) -> None:
-        """Crea un QComboBox por cada columna del archivo y muestra el groupbox.
+    def show_mapping_table(self, headers: list[str]) -> None:
+        """Popula la tabla de mapeo y activa auto-detección de columnas.
+
+        Muestra el groupbox de mapeo y recalcula el banner de estado.
 
         Args:
             headers: Nombres de columnas del archivo.
         """
-        self._current_headers = headers
-
-        # Limpiar combos existentes
-        for combo in self._combos:
-            combo.deleteLater()
-        self._combos.clear()
-        while self._combos_layout.count():
-            item = self._combos_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-
-        # Crear un combo por columna
-        for _ in headers:
-            combo = QComboBox()
-            combo.addItems(_FIELD_OPTIONS)
-            combo.setFixedWidth(_DEFAULT_COLUMN_WIDTH)
-            combo.currentIndexChanged.connect(self._on_mapping_changed)
-            self._combos_layout.addWidget(combo)
-            self._combos.append(combo)
-
-        # Stretch al final para que los combos no se expandan
-        self._combos_layout.addStretch()
+        self._mapping_widget.populate(headers)
+        self._mapping_widget.auto_detect(headers)
         self._mapping_group.setVisible(True)
+        self._on_mapping_changed()
+
+    def get_column_mapping(self) -> dict[str, str]:
+        """Retorna el mapeo actual ``{campo_destino: columna_del_archivo}``.
+
+        Returns:
+            Dict con los 4 campos destino y la columna asignada.
+        """
+        return self._mapping_widget.get_mapping()
+
+    def show_mapping_status(self, status: MappingStatus) -> None:
+        """Actualiza el banner de estado del mapeo y habilita/deshabilita "Importar".
+
+        Args:
+            status: MappingStatus con mensaje, color de fondo y flag de validez.
+        """
+        self._banner_label.setText(status.message)
+        self._banner_label.setStyleSheet(
+            f"background:{status.bg_color}; border-radius:6px; padding:8px 10px;"
+        )
+        self._btn_import.setEnabled(status.valid)
 
     def show_preview(self, headers: list[str], rows: list[list[str]]) -> None:
         """Carga los datos en el QTableView de preview.
-
-        Sincroniza los anchos de los QComboBox con las columnas de la tabla.
 
         Args:
             headers: Nombres de columnas.
@@ -174,11 +292,6 @@ class ImportView(QWidget):
             for col_idx, value in enumerate(row):
                 model.setItem(row_idx, col_idx, QStandardItem(value or ""))
         self._preview_table.setModel(model)
-
-        # Sincronizar anchos de combos con columnas de la tabla
-        h_header = self._preview_table.horizontalHeader()
-        for i, combo in enumerate(self._combos):
-            combo.setFixedWidth(h_header.sectionSize(i))
 
     def ask_file_path(self) -> Optional[Path]:
         """Abre QFileDialog y retorna la ruta seleccionada.
@@ -244,6 +357,14 @@ class ImportView(QWidget):
         )
         root.addWidget(info_label)
 
+        # --- 1c. Banner de estado del mapeo ---
+        self._banner_label = QLabel("Seleccione un archivo para comenzar.")
+        self._banner_label.setWordWrap(True)
+        self._banner_label.setStyleSheet(
+            "background:#f3f4f6; border-radius:6px; padding:8px 10px; color:#374151;"
+        )
+        root.addWidget(self._banner_label)
+
         # --- 2. Sección de mapeo (oculta hasta cargar archivo) ---
         self._mapping_group = QGroupBox("Mapeo de columnas")
         self._mapping_group.setVisible(False)
@@ -251,23 +372,11 @@ class ImportView(QWidget):
         mapping_layout.setSpacing(4)
         mapping_layout.setContentsMargins(8, 12, 8, 8)
 
-        # Scroll horizontal para los QComboBox
-        self._combos_scroll = QScrollArea()
-        self._combos_scroll.setHorizontalScrollBarPolicy(
-            __import__("PySide6.QtCore", fromlist=["Qt"]).Qt.ScrollBarAlwaysOn
-        )
-        self._combos_scroll.setVerticalScrollBarPolicy(
-            __import__("PySide6.QtCore", fromlist=["Qt"]).Qt.ScrollBarAlwaysOff
-        )
-        self._combos_scroll.setWidgetResizable(False)
-        self._combos_scroll.setFixedHeight(46)
-
-        combos_widget = QWidget()
-        self._combos_layout = QHBoxLayout(combos_widget)
-        self._combos_layout.setSpacing(0)
-        self._combos_layout.setContentsMargins(0, 0, 0, 0)
-        self._combos_scroll.setWidget(combos_widget)
-        mapping_layout.addWidget(self._combos_scroll)
+        # Tabla de mapeo invertida (4 filas fijas)
+        self._mapping_widget = _MappingTableWidget()
+        self._mapping_widget.setMaximumHeight(160)
+        self._mapping_widget.mapping_changed.connect(self._on_mapping_changed)
+        mapping_layout.addWidget(self._mapping_widget)
 
         # QTableView para preview
         self._preview_table = QTableView()
@@ -275,11 +384,7 @@ class ImportView(QWidget):
             QSizePolicy.Expanding, QSizePolicy.Expanding
         )
         self._preview_table.setAlternatingRowColors(True)
-        self._preview_table.setSelectionBehavior(
-            __import__(
-                "PySide6.QtWidgets", fromlist=["QAbstractItemView"]
-            ).QAbstractItemView.SelectRows
-        )
+        self._preview_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._preview_table.horizontalHeader().setStretchLastSection(True)
         mapping_layout.addWidget(self._preview_table)
         root.addWidget(self._mapping_group)
@@ -307,18 +412,6 @@ class ImportView(QWidget):
         self._btn_import.clicked.connect(self._on_import_clicked)
         root.addWidget(self._btn_import)
 
-    def _setup_scroll_sync(self) -> None:
-        """Sincroniza el scroll horizontal de los combos con la tabla de preview."""
-        self._preview_table.horizontalScrollBar().valueChanged.connect(
-            self._combos_scroll.horizontalScrollBar().setValue
-        )
-        self._combos_scroll.horizontalScrollBar().valueChanged.connect(
-            self._preview_table.horizontalScrollBar().setValue
-        )
-        self._preview_table.horizontalHeader().sectionResized.connect(
-            self._on_column_resized
-        )
-
     # ------------------------------------------------------------------
     # Handlers Qt internos
     # ------------------------------------------------------------------
@@ -331,27 +424,44 @@ class ImportView(QWidget):
             self.file_selected.emit(file_path)
 
     def _on_import_clicked(self) -> None:
-        """Construye el dict de mapeo y emite import_requested."""
-        mapping: dict[str, str] = {}
-        for i, combo in enumerate(self._combos):
-            if i < len(self._current_headers):
-                mapping[self._current_headers[i]] = combo.currentText()
-        self.import_requested.emit(mapping)
+        """Obtiene el mapeo actual y emite import_requested."""
+        self.import_requested.emit(self.get_column_mapping())
 
     def _on_mapping_changed(self) -> None:
-        """Habilita el botón Importar cuando los campos requeridos están mapeados."""
-        mapped = {c.currentText() for c in self._combos} - {"(ignorar)"}
-        self._btn_import.setEnabled(_REQUIRED_FIELDS.issubset(mapped))
+        """Recalcula el banner de estado basándose en el mapeo actual."""
+        mapping = self.get_column_mapping()
 
-    def _on_column_resized(
-        self, logical_index: int, _old_size: int, new_size: int
-    ) -> None:
-        """Sincroniza el ancho del QComboBox correspondiente al redimensionar columnas.
+        # Detectar campos requeridos sin asignar
+        missing = [
+            field
+            for field, required in _DEST_FIELDS
+            if required and mapping.get(field, _UNASSIGNED) in {_UNASSIGNED, _IGNORE}
+        ]
 
-        Args:
-            logical_index: Índice de la columna redimensionada.
-            _old_size: Ancho anterior (no usado).
-            new_size: Nuevo ancho en pixels.
-        """
-        if 0 <= logical_index < len(self._combos):
-            self._combos[logical_index].setFixedWidth(new_size)
+        # Detectar columnas del archivo asignadas a ≥2 campos destino
+        assigned_cols = [
+            col for col in mapping.values() if col not in {_UNASSIGNED, _IGNORE}
+        ]
+        has_duplicates = len(assigned_cols) != len(set(assigned_cols))
+
+        if has_duplicates:
+            status = MappingStatus(
+                message="Error: la misma columna del archivo está asignada a más de un campo destino.",
+                bg_color="#fee2e2",
+                valid=False,
+            )
+        elif missing:
+            campos = ", ".join(f"'{f}'" for f in missing)
+            status = MappingStatus(
+                message=f"Campos requeridos sin asignar: {campos}.",
+                bg_color="#fef9c3",
+                valid=False,
+            )
+        else:
+            status = MappingStatus(
+                message="Mapeo completo. Todos los campos requeridos están asignados.",
+                bg_color="#dcfce7",
+                valid=True,
+            )
+
+        self.show_mapping_status(status)

@@ -1,4 +1,4 @@
-"""Tests unitarios para BulkPriceImporter, UpdateBulkPrices e ImportPresenter.
+"""Tests unitarios para BulkPriceImporter y UpdateBulkPrices.
 
 Cobertura:
     BulkPriceImporter:
@@ -14,12 +14,6 @@ Cobertura:
         - UPDATE de productos existentes con cambio de costo + historial.
         - Skip de productos sin cambio de costo.
         - Lote vacío retorna resultado vacío.
-
-    ImportPresenter:
-        - on_select_file_requested devuelve None si el usuario cancela.
-        - on_select_file_requested actualiza estado si hay archivo.
-        - on_import_completed muestra resumen correcto.
-        - on_import_error muestra mensaje de error.
 """
 
 from __future__ import annotations
@@ -27,7 +21,6 @@ from __future__ import annotations
 import io
 from decimal import Decimal
 from pathlib import Path
-from typing import Optional
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -39,7 +32,6 @@ from src.application.use_cases.update_bulk_prices import (
     UpdateBulkPrices,
 )
 from src.infrastructure.importers.bulk_price_importer import BulkPriceImporter
-from src.infrastructure.ui.windows.import_dialog import ImportPresenter
 
 
 # ---------------------------------------------------------------------------
@@ -182,6 +174,115 @@ class TestBulkPriceImporterParse:
 
 
 # ---------------------------------------------------------------------------
+# Tests: BulkPriceImporter — parse_dataframe (nuevo formato {dest: col_archivo})
+# ---------------------------------------------------------------------------
+
+class TestBulkPriceImporterParseDataframe:
+    """Tests de parse_dataframe() con el formato {campo_destino: col_archivo} (Ticket 3.3)."""
+
+    def test_parse_dataframe_con_mapping_nuevo_formato(self) -> None:
+        """parse_dataframe acepta {campo_destino: col_archivo} y renombra correctamente."""
+        import polars as pl
+
+        df = pl.DataFrame({
+            "Código EAN": ["7790001000001", "7790001000002"],
+            "Descripción": ["Coca Cola", "Pepsi"],
+            "Costo Neto": ["1250", "1100"],
+        })
+        mapping = {
+            "barcode": "Código EAN",
+            "name": "Descripción",
+            "net_cost": "Costo Neto",
+        }
+
+        result = BulkPriceImporter().parse_dataframe(df, mapping)
+
+        assert len(result.valid_rows) == 2
+        assert result.errors == []
+        assert result.valid_rows[0].barcode == "7790001000001"
+        assert result.valid_rows[0].name == "Coca Cola"
+
+    def test_parse_dataframe_alias_net_cost_a_cost_price(self) -> None:
+        """El alias net_cost→cost_price se aplica correctamente con el nuevo formato."""
+        import polars as pl
+
+        df = pl.DataFrame({
+            "ean": ["7790001000001"],
+            "prod": ["Fideos Don Victorio"],
+            "precio": ["850"],
+        })
+        mapping = {
+            "barcode": "ean",
+            "name": "prod",
+            "net_cost": "precio",
+        }
+
+        result = BulkPriceImporter().parse_dataframe(df, mapping)
+
+        assert len(result.valid_rows) == 1
+        assert result.valid_rows[0].cost_price == Decimal("850")
+
+    def test_parse_dataframe_columna_ignorar_se_descarta(self) -> None:
+        """Entradas con col_archivo '(ignorar)' se omiten sin romper el parsing."""
+        import polars as pl
+
+        df = pl.DataFrame({
+            "barcode": ["7790001000001"],
+            "name": ["Galletitas Oreo"],
+            "cost_price": ["980"],
+            "columna_extra": ["ignorada"],
+        })
+        mapping = {
+            "barcode": "barcode",
+            "name": "name",
+            "net_cost": "cost_price",
+            "category": "(ignorar)",
+        }
+
+        result = BulkPriceImporter().parse_dataframe(df, mapping)
+
+        assert len(result.valid_rows) == 1
+        assert result.errors == []
+
+    def test_parse_dataframe_col_archivo_inexistente_se_ignora(self) -> None:
+        """Si col_archivo no existe en el DataFrame, la entrada del mapping se omite sin error."""
+        import polars as pl
+
+        df = pl.DataFrame({
+            "barcode": ["7790001000001"],
+            "name": ["Alfajor Jorgito"],
+            "cost_price": ["350"],
+        })
+        # "columna_que_no_existe" no está en el DataFrame
+        mapping = {
+            "barcode": "barcode",
+            "name": "name",
+            "net_cost": "cost_price",
+            "category": "columna_que_no_existe",
+        }
+
+        result = BulkPriceImporter().parse_dataframe(df, mapping)
+
+        assert len(result.valid_rows) == 1
+        assert result.errors == []
+
+    def test_parse_dataframe_sin_mapping_usa_nombres_directos(self) -> None:
+        """Si column_mapping es None, el DataFrame se valida con sus nombres originales."""
+        import polars as pl
+
+        df = pl.DataFrame({
+            "barcode": ["7790001000001", "7790001000002"],
+            "name": ["Agua Ser 500ml", "Sprite 500ml"],
+            "cost_price": ["450", "520"],
+        })
+
+        result = BulkPriceImporter().parse_dataframe(df, column_mapping=None)
+
+        assert len(result.valid_rows) == 2
+        assert result.errors == []
+
+
+# ---------------------------------------------------------------------------
 # Tests: _parse_decimal (casos edge)
 # ---------------------------------------------------------------------------
 
@@ -314,98 +415,3 @@ class TestUpdateBulkPrices:
         assert result.skipped == 1
         assert result.updated == 0
         session.commit.assert_called_once()
-
-
-# ---------------------------------------------------------------------------
-# Tests: ImportPresenter (FakeImportView)
-# ---------------------------------------------------------------------------
-
-class FakeImportView:
-    """Vista falsa para testear ImportPresenter sin Qt."""
-
-    def __init__(self, file_path: Optional[Path] = None) -> None:
-        self._file_path = file_path
-        self.status_messages: list[str] = []
-        self.progress_visible: list[bool] = []
-        self.button_enabled: list[bool] = []
-        self.closed = False
-
-    def show_status(self, message: str) -> None:
-        self.status_messages.append(message)
-
-    def show_progress(self, visible: bool) -> None:
-        self.progress_visible.append(visible)
-
-    def enable_select_button(self, enabled: bool) -> None:
-        self.button_enabled.append(enabled)
-
-    def ask_file_path(self) -> Optional[Path]:
-        return self._file_path
-
-    def close_dialog(self) -> None:
-        self.closed = True
-
-
-class TestImportPresenter:
-    def test_on_select_file_retorna_none_si_usuario_cancela(self) -> None:
-        """Si ask_file_path retorna None, on_select_file_requested retorna None."""
-        view = FakeImportView(file_path=None)
-        presenter = ImportPresenter(view)
-
-        result = presenter.on_select_file_requested()
-
-        assert result is None
-        assert view.status_messages == []
-        assert view.progress_visible == []
-
-    def test_on_select_file_actualiza_estado_si_hay_archivo(self, tmp_path: Path) -> None:
-        """Si el usuario selecciona un archivo, el presenter actualiza estado."""
-        file = tmp_path / "lista.csv"
-        file.touch()
-        view = FakeImportView(file_path=file)
-        presenter = ImportPresenter(view)
-
-        result = presenter.on_select_file_requested()
-
-        assert result == file
-        assert any("lista.csv" in msg for msg in view.status_messages)
-        assert True in view.progress_visible
-        assert False in view.button_enabled
-
-    def test_on_import_completed_muestra_resumen(self) -> None:
-        """on_import_completed muestra resumen con contadores correctos."""
-        view = FakeImportView()
-        presenter = ImportPresenter(view)
-
-        import_result = ImportResult(inserted=5, updated=3, skipped=2, errors=[])
-        presenter.on_import_completed(import_result)
-
-        assert any("5" in msg for msg in view.status_messages)
-        assert any("3" in msg for msg in view.status_messages)
-        assert False in view.progress_visible
-        assert True in view.button_enabled
-
-    def test_on_import_error_muestra_mensaje(self) -> None:
-        """on_import_error muestra el mensaje de error recibido."""
-        view = FakeImportView()
-        presenter = ImportPresenter(view)
-
-        presenter.on_import_error("Conexión rechazada")
-
-        assert any("Conexión rechazada" in msg for msg in view.status_messages)
-        assert False in view.progress_visible
-        assert True in view.button_enabled
-
-    def test_on_import_completed_muestra_cantidad_errores(self) -> None:
-        """Resumen incluye la cantidad de errores de fila."""
-        view = FakeImportView()
-        presenter = ImportPresenter(view)
-
-        errors = [
-            ImportRowError(row_number=3, barcode="123", reason="costo inválido"),
-            ImportRowError(row_number=7, barcode="", reason="barcode vacío"),
-        ]
-        import_result = ImportResult(inserted=8, updated=0, skipped=1, errors=errors)
-        presenter.on_import_completed(import_result)
-
-        assert any("2" in msg for msg in view.status_messages)

@@ -17,6 +17,7 @@ Cubre los criterios de aceptación del Ticket 3.2:
 
 from __future__ import annotations
 
+import unicodedata
 from pathlib import Path
 from typing import Optional
 from unittest.mock import MagicMock, patch
@@ -24,7 +25,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from src.application.use_cases.update_bulk_prices import ImportResult, ImportRowError
-from src.infrastructure.ui.presenters.import_presenter import ImportPresenter
+from src.infrastructure.ui.presenters.import_presenter import (
+    ImportPresenter,
+    _AUTOMAP_ALIASES,
+    _IGNORE,
+    _UNASSIGNED,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -43,10 +49,12 @@ class FakeImportView:
         self.import_button_enabled: bool = False
         self.file_info_filename: str = ""
         self.file_info_row_count: int = 0
-        self.column_mapping_headers: list[str] = []
+        self.mapping_table_headers: list[str] = []
+        self.mapping_status = None
         self.preview_headers: list[str] = []
         self.preview_rows: list[list[str]] = []
         self._ask_file_path_return: Optional[Path] = None
+        self._mock_mapping: dict[str, str] = {}
 
     def show_status(self, message: str, is_error: bool = False) -> None:
         self.status_message = message
@@ -64,8 +72,14 @@ class FakeImportView:
         self.file_info_filename = filename
         self.file_info_row_count = row_count
 
-    def show_column_mapping(self, headers: list[str]) -> None:
-        self.column_mapping_headers = list(headers)
+    def show_mapping_table(self, headers: list[str]) -> None:
+        self.mapping_table_headers = list(headers)
+
+    def show_mapping_status(self, status) -> None:
+        self.mapping_status = status
+
+    def get_column_mapping(self) -> dict[str, str]:
+        return self._mock_mapping
 
     def show_preview(self, headers: list[str], rows: list[list[str]]) -> None:
         self.preview_headers = list(headers)
@@ -144,7 +158,7 @@ def test_on_file_loaded_updates_column_mapping(
 
     presenter.on_file_loaded(headers, rows)
 
-    assert fake_view.column_mapping_headers == headers
+    assert fake_view.mapping_table_headers == headers
 
 
 def test_on_file_loaded_updates_preview(
@@ -207,7 +221,8 @@ def test_on_file_loaded_shows_status_with_row_count(
 def test_on_import_requested_missing_all_required_shows_error(
     presenter: ImportPresenter, fake_view: FakeImportView
 ) -> None:
-    mapping = {"columna_a": "(ignorar)", "columna_b": "category"}
+    # Nuevo formato: {campo_destino: col_archivo}; sin los 3 requeridos
+    mapping = {"category": "columna_b"}
 
     presenter.on_import_requested(mapping)
 
@@ -220,10 +235,11 @@ def test_on_import_requested_missing_all_required_shows_error(
 def test_on_import_requested_missing_net_cost_shows_error(
     presenter: ImportPresenter, fake_view: FakeImportView
 ) -> None:
+    # Nuevo formato: {campo_destino: col_archivo}; net_cost ausente
     mapping = {
-        "col_barcode": "barcode",
-        "col_name": "name",
-        "col_category": "category",
+        "barcode": "col_barcode",
+        "name": "col_name",
+        "category": "col_category",
     }
 
     presenter.on_import_requested(mapping)
@@ -235,9 +251,10 @@ def test_on_import_requested_missing_net_cost_shows_error(
 def test_on_import_requested_missing_barcode_shows_error(
     presenter: ImportPresenter, fake_view: FakeImportView
 ) -> None:
+    # Nuevo formato: {campo_destino: col_archivo}; barcode ausente
     mapping = {
-        "col_name": "name",
-        "col_cost": "net_cost",
+        "name": "col_name",
+        "net_cost": "col_cost",
     }
 
     presenter.on_import_requested(mapping)
@@ -251,9 +268,9 @@ def test_on_import_requested_without_file_path_shows_error(
 ) -> None:
     """Todos los campos requeridos mapeados pero sin file_path seleccionado."""
     mapping = {
-        "col_barcode": "barcode",
-        "col_name": "name",
-        "col_cost": "net_cost",
+        "barcode": "col_barcode",
+        "name": "col_name",
+        "net_cost": "col_cost",
     }
     presenter._current_file_path = None
 
@@ -397,3 +414,160 @@ def test_on_file_selected_starts_worker(
     presenter.on_file_selected(Path("/tmp/precios.csv"))
 
     mock_worker.start.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# FakeAutoDetectView: extiende FakeImportView simulando la auto-detección
+# ---------------------------------------------------------------------------
+
+
+def _normalize(s: str) -> str:
+    """Normaliza eliminando diacríticos y convirtiendo a minúsculas."""
+    return "".join(
+        c
+        for c in unicodedata.normalize("NFD", s.lower())
+        if unicodedata.category(c) != "Mn"
+    )
+
+
+class FakeAutoDetectView(FakeImportView):
+    """FakeView que simula la auto-detección de columnas de _MappingTableWidget."""
+
+    def show_mapping_table(self, headers: list[str]) -> None:
+        super().show_mapping_table(headers)
+        norm_to_orig = {_normalize(h): h for h in headers}
+        detected: dict[str, str] = {}
+        for field_name, aliases in _AUTOMAP_ALIASES.items():
+            detected[field_name] = _UNASSIGNED
+            for alias in aliases:
+                if _normalize(alias) in norm_to_orig:
+                    detected[field_name] = norm_to_orig[_normalize(alias)]
+                    break
+        self._mock_mapping = detected
+
+
+# ---------------------------------------------------------------------------
+# Tests: TestImportPresenterOnImportRequested (Ticket 3.4)
+# ---------------------------------------------------------------------------
+
+
+class TestImportPresenterOnImportRequested:
+    """Verifica la validación completa en on_import_requested (Ticket 3.4)."""
+
+    def _make_presenter(self):
+        view = FakeImportView()
+        sf = MagicMock()
+        p = ImportPresenter(view, sf)
+        p._current_file_path = Path("/tmp/lista.csv")
+        return p, view
+
+    @patch("src.infrastructure.ui.workers.import_worker.ImportWorker")
+    def test_mapping_valido_lanza_worker(self, MockImportWorker) -> None:
+        """Mapping completo sin duplicados pasa validación y lanza ImportWorker."""
+        mock_worker = MagicMock()
+        MockImportWorker.return_value = mock_worker
+        presenter, view = self._make_presenter()
+
+        mapping = {
+            "barcode": "col_ean",
+            "name": "col_desc",
+            "net_cost": "col_costo",
+        }
+        presenter.on_import_requested(mapping)
+
+        mock_worker.start.assert_called_once()
+        assert view.status_is_error is False
+
+    def test_mapping_con_campo_faltante_muestra_error(self) -> None:
+        """Mapping sin net_cost muestra error con nombre del campo faltante."""
+        presenter, view = self._make_presenter()
+
+        mapping = {
+            "barcode": "col_ean",
+            "name": "col_desc",
+        }
+        presenter.on_import_requested(mapping)
+
+        assert view.status_is_error is True
+        assert "net_cost" in view.status_message
+
+    def test_mapping_con_columna_duplicada_muestra_error(self) -> None:
+        """Dos campos destino asignados a la misma columna muestran error de conflicto."""
+        presenter, view = self._make_presenter()
+
+        mapping = {
+            "barcode": "col_ean",
+            "name": "col_ean",   # misma columna que barcode
+            "net_cost": "col_costo",
+        }
+        presenter.on_import_requested(mapping)
+
+        assert view.status_is_error is True
+        assert "conflicto" in view.status_message.lower() or "misma columna" in view.status_message.lower()
+
+    def test_sin_archivo_seleccionado_muestra_error(self) -> None:
+        """Si _current_file_path es None, muestra error sin lanzar worker."""
+        presenter, view = self._make_presenter()
+        presenter._current_file_path = None
+
+        mapping = {
+            "barcode": "col_ean",
+            "name": "col_desc",
+            "net_cost": "col_costo",
+        }
+        presenter.on_import_requested(mapping)
+
+        assert view.status_is_error is True
+        assert "archivo" in view.status_message.lower()
+
+
+# ---------------------------------------------------------------------------
+# Tests: TestImportPresenterAutoDetect (coherente con Ticket 3.3)
+# ---------------------------------------------------------------------------
+
+
+class TestImportPresenterAutoDetect:
+    """Verifica que on_file_loaded dispara show_mapping_table con auto-detección correcta."""
+
+    def _make_presenter_with_autodetect(self):
+        view = FakeAutoDetectView()
+        sf = MagicMock()
+        p = ImportPresenter(view, sf)
+        p._current_file_path = Path("/tmp/lista.csv")
+        return p, view
+
+    def test_autodetecta_columnas_por_nombre_exacto(self) -> None:
+        """Headers ['barcode', 'name', 'net_cost'] se auto-mapean sin intervención."""
+        presenter, view = self._make_presenter_with_autodetect()
+        headers = ["barcode", "name", "net_cost"]
+
+        presenter.on_file_loaded(headers, [])
+
+        mapping = view.get_column_mapping()
+        assert mapping["barcode"] == "barcode"
+        assert mapping["name"] == "name"
+        assert mapping["net_cost"] == "net_cost"
+
+    def test_autodetecta_columnas_por_alias(self) -> None:
+        """Header 'codigo' se mapea a 'barcode'; 'costo_neto' se mapea a 'net_cost'."""
+        presenter, view = self._make_presenter_with_autodetect()
+        headers = ["codigo", "descripcion", "costo_neto"]
+
+        presenter.on_file_loaded(headers, [])
+
+        mapping = view.get_column_mapping()
+        assert mapping["barcode"] == "codigo"
+        assert mapping["name"] == "descripcion"
+        assert mapping["net_cost"] == "costo_neto"
+
+    def test_no_autodetecta_columna_ambigua(self) -> None:
+        """Header sin alias conocido queda sin asignar."""
+        presenter, view = self._make_presenter_with_autodetect()
+        headers = ["col_x", "col_y", "col_z"]
+
+        presenter.on_file_loaded(headers, [])
+
+        mapping = view.get_column_mapping()
+        assert mapping.get("barcode") == _UNASSIGNED
+        assert mapping.get("name") == _UNASSIGNED
+        assert mapping.get("net_cost") == _UNASSIGNED

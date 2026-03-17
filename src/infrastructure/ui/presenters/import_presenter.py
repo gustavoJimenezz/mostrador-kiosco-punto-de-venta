@@ -6,7 +6,7 @@ Flujo:
     Usuario selecciona archivo
     → ImportView emite file_selected(Path)
     → ImportPresenter.on_file_selected() lanza FileLoadWorker
-    → on_file_loaded() actualiza preview + combos de mapeo
+    → on_file_loaded() actualiza tabla de mapeo + preview
     → Usuario mapea columnas y pulsa "Importar"
     → ImportView emite import_requested(dict)
     → ImportPresenter.on_import_requested() valida + lanza ImportWorker
@@ -15,12 +15,38 @@ Flujo:
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional, Protocol, runtime_checkable
 
 from src.application.use_cases.update_bulk_prices import ImportResult
 
 _REQUIRED_FIELDS = {"barcode", "name", "net_cost"}
+
+_UNASSIGNED = "(sin asignar)"
+_IGNORE = "(ignorar)"
+
+_AUTOMAP_ALIASES: dict[str, set[str]] = {
+    "barcode":  {"barcode", "codigo", "código", "ean", "ean13", "cod_barras", "codigo_barras"},
+    "name":     {"name", "nombre", "descripcion", "descripción", "producto", "articulo", "artículo"},
+    "net_cost": {"net_cost", "costo", "precio", "precio_neto", "costo_neto", "cost_price", "precio_lista"},
+    "category": {"category", "categoria", "categoría", "rubro"},
+}
+
+
+@dataclass
+class MappingStatus:
+    """Estado del mapeo de columnas para el banner de la vista.
+
+    Attributes:
+        message: Texto descriptivo del estado.
+        bg_color: Color de fondo CSS (#rrggbb).
+        valid: True si todos los campos requeridos están mapeados sin conflictos.
+    """
+
+    message: str
+    bg_color: str
+    valid: bool
 
 
 @runtime_checkable
@@ -65,11 +91,27 @@ class IImportView(Protocol):
         """
         ...
 
-    def show_column_mapping(self, headers: list[str]) -> None:
-        """Muestra los controles de mapeo de columnas (un QComboBox por columna).
+    def show_mapping_table(self, headers: list[str]) -> None:
+        """Muestra la tabla de mapeo de columnas (4 filas fijas, una por campo destino).
 
         Args:
             headers: Nombres de columnas del archivo.
+        """
+        ...
+
+    def show_mapping_status(self, status: MappingStatus) -> None:
+        """Actualiza el banner de estado del mapeo.
+
+        Args:
+            status: MappingStatus con mensaje, color y flag de validez.
+        """
+        ...
+
+    def get_column_mapping(self) -> dict[str, str]:
+        """Retorna el mapeo actual {campo_destino: columna_del_archivo}.
+
+        Returns:
+            Dict con los 4 campos destino y la columna asignada (o _UNASSIGNED).
         """
         ...
 
@@ -139,17 +181,30 @@ class ImportPresenter:
         """Valida el mapeo de columnas y lanza ImportWorker si es válido.
 
         Requiere exactamente un campo mapeado a cada uno de: barcode, name, net_cost.
-        Las columnas mapeadas a "(ignorar)" se descartan.
+        Los campos mapeados a "(sin asignar)" o "(ignorar)" se consideran ausentes.
 
         Args:
-            column_mapping: Diccionario ``{col_archivo: campo_destino}``.
+            column_mapping: Diccionario ``{campo_destino: col_archivo}``.
         """
-        mapped_fields = set(column_mapping.values()) - {"(ignorar)"}
-        missing = _REQUIRED_FIELDS - mapped_fields
+        missing = {
+            field for field in _REQUIRED_FIELDS
+            if column_mapping.get(field, _UNASSIGNED) in {_UNASSIGNED, _IGNORE}
+        }
         if missing:
             campos = ", ".join(sorted(missing))
             self._view.show_status(
                 f"Se requieren los campos: {campos}", is_error=True
+            )
+            return
+
+        source_cols = [
+            v for v in column_mapping.values()
+            if v not in {_UNASSIGNED, _IGNORE, ""}
+        ]
+        if len(source_cols) != len(set(source_cols)):
+            self._view.show_status(
+                "Conflicto: la misma columna está asignada a más de un campo.",
+                is_error=True,
             )
             return
 
@@ -186,7 +241,7 @@ class ImportPresenter:
         """
         self._current_headers = headers
         self._current_rows = rows
-        self._view.show_column_mapping(headers)
+        self._view.show_mapping_table(headers)
         self._view.show_preview(headers, rows)
         filename = self._current_file_path.name if self._current_file_path else ""
         self._view.show_file_info(filename, len(rows))
@@ -243,7 +298,7 @@ class ImportPresenter:
 
     def _on_headers_loaded(self, headers: list[str]) -> None:
         self._current_headers = headers
-        self._view.show_column_mapping(headers)
+        self._view.show_mapping_table(headers)
 
     def _on_rows_loaded(self, rows: list[list[str]]) -> None:
         self._current_rows = rows

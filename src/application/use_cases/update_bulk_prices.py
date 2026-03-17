@@ -129,7 +129,10 @@ class UpdateBulkPrices:
         if not rows:
             return result
 
-        all_barcodes = [row.barcode for row in rows]
+        # Deduplicar por barcode: ante duplicados en el archivo, gana la última fila.
+        rows_by_barcode: dict[str, ProductImportRow] = {row.barcode: row for row in rows}
+        rows = list(rows_by_barcode.values())
+        all_barcodes = list(rows_by_barcode.keys())
 
         # --- 1. Consulta masiva: qué barcodes ya existen ---
         stmt = select(

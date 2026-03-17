@@ -1,0 +1,46 @@
+<script src="https://cdn.tailwindcss.com"></script>
+<body class="bg-[#EEF2F6] h-screen flex font-sans overflow-hidden">
+    <nav class="w-24 bg-white border-r border-slate-200 flex flex-col items-center py-8 gap-10">
+        <div class="w-12 h-12 bg-blue-600 rounded-2xl rotate-3 shadow-lg flex items-center justify-center text-white font-bold">POS</div>
+        <div class="flex flex-col gap-8">
+            <button class="text-blue-600 flex flex-col items-center gap-1 group">
+                <div class="p-3 rounded-xl bg-blue-50 group-hover:bg-blue-600 group-hover:text-white transition-all italic font-black">F1</div>
+            </button>
+            <button class="text-slate-400 flex flex-col items-center gap-1 group">
+                <div class="p-3 rounded-xl bg-slate-50 group-hover:bg-blue-600 group-hover:text-white transition-all italic font-black">F2</div>
+            </button>
+            <button class="text-slate-400 flex flex-col items-center gap-1 group">
+                <div class="p-3 rounded-xl bg-slate-50 group-hover:bg-red-500 group-hover:text-white transition-all italic font-black">F10</div>
+            </button>
+        </div>
+    </nav>
+
+    <main class="flex-grow flex flex-col p-10">
+        <div class="flex justify-between items-center mb-10">
+            <div class="relative w-1/2">
+                <span class="absolute inset-y-0 left-5 flex items-center text-slate-400 italic font-bold text-sm">F2</span>
+                <input type="text" placeholder="Buscar producto..." class="w-full bg-white border-none rounded-full py-4 pl-14 pr-6 shadow-sm focus:ring-2 focus:ring-blue-600 outline-none transition-all text-lg">
+            </div>
+            <div class="flex gap-4 items-center">
+                <div class="text-right">
+                    <p class="text-slate-400 text-xs font-bold uppercase tracking-widest">Total acumulado</p>
+                    <p class="text-4xl font-bold text-slate-800 tabular-nums">$0,00</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex-grow bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 overflow-hidden flex flex-col">
+            <div class="bg-slate-50/50 px-10 py-6 border-b border-slate-100 flex justify-between">
+                <h3 class="font-bold text-slate-800">Carrito de Compra</h3>
+                <span class="text-slate-400 text-sm italic">0 Items</span>
+            </div>
+            <div class="flex-grow overflow-y-auto">
+                </div>
+            <div class="p-8 bg-white border-t border-slate-100">
+                <button class="w-full bg-blue-600 hover:bg-blue-700 text-white py-6 rounded-2xl text-2xl font-bold shadow-lg shadow-blue-200 transition-all active:scale-[0.98]">
+                    Finalizar Cobro [F4]
+                </button>
+            </div>
+        </div>
+    </main>
+</body>

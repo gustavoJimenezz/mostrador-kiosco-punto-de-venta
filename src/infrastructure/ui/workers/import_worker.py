@@ -100,7 +100,7 @@ class ImportWorker(QThread):
     Args:
         session_factory: Callable que retorna una nueva Session de SQLAlchemy.
         file_path: Ruta al archivo CSV o Excel a importar.
-        column_mapping: Diccionario ``{col_archivo: campo_destino}``.
+        column_mapping: Diccionario ``{campo_destino: col_archivo}``.
                         Las columnas mapeadas a ``"(ignorar)"`` se descartan.
                         Campos destino: ``barcode``, ``name``, ``net_cost``, ``category``.
         parent: QObject padre (opcional).
@@ -124,8 +124,10 @@ class ImportWorker(QThread):
 
     def run(self) -> None:
         """Ejecuta el parsing + upsert en el hilo separado."""
-        session = self._session_factory()
+        session = None
         try:
+            session = self._session_factory()
+
             import polars as pl
 
             from src.application.use_cases.update_bulk_prices import UpdateBulkPrices
@@ -158,4 +160,5 @@ class ImportWorker(QThread):
         except Exception as exc:
             self.error_occurred.emit(str(exc))
         finally:
-            session.close()
+            if session is not None:
+                session.close()
