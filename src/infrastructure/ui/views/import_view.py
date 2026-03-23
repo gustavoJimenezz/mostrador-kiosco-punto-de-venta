@@ -21,6 +21,7 @@ Señales emitidas (conectadas al ImportPresenter desde set_presenter()):
 from __future__ import annotations
 
 import unicodedata
+from decimal import Decimal
 from pathlib import Path
 from typing import Optional
 
@@ -28,7 +29,9 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QComboBox,
+    QDoubleSpinBox,
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
@@ -378,6 +381,27 @@ class ImportView(QWidget):
         self._mapping_widget.mapping_changed.connect(self._on_mapping_changed)
         mapping_layout.addWidget(self._mapping_widget)
 
+        # Sección margen global
+        margin_row = QHBoxLayout()
+        margin_row.setSpacing(8)
+
+        self._chk_global_margin = QCheckBox("Aplicar margen de ganancia global al importar:")
+        margin_row.addWidget(self._chk_global_margin)
+
+        self._spin_global_margin = QDoubleSpinBox()
+        self._spin_global_margin.setRange(0.0, 9999.99)
+        self._spin_global_margin.setSingleStep(0.5)
+        self._spin_global_margin.setDecimals(2)
+        self._spin_global_margin.setSuffix(" %")
+        self._spin_global_margin.setValue(30.0)
+        self._spin_global_margin.setFixedWidth(110)
+        self._spin_global_margin.setEnabled(False)
+        margin_row.addWidget(self._spin_global_margin)
+        margin_row.addStretch()
+
+        self._chk_global_margin.toggled.connect(self._spin_global_margin.setEnabled)
+        mapping_layout.addLayout(margin_row)
+
         # QTableView para preview
         self._preview_table = QTableView()
         self._preview_table.setSizePolicy(
@@ -424,8 +448,13 @@ class ImportView(QWidget):
             self.file_selected.emit(file_path)
 
     def _on_import_clicked(self) -> None:
-        """Obtiene el mapeo actual y emite import_requested."""
-        self.import_requested.emit(self.get_column_mapping())
+        """Obtiene el mapeo actual (con margen global si está habilitado) y emite import_requested."""
+        mapping = self.get_column_mapping()
+        if self._chk_global_margin.isChecked():
+            mapping["global_margin"] = Decimal(str(self._spin_global_margin.value()))
+        else:
+            mapping["global_margin"] = None
+        self.import_requested.emit(mapping)
 
     def _on_mapping_changed(self) -> None:
         """Recalcula el banner de estado basándose en el mapeo actual."""

@@ -16,8 +16,9 @@ Uso típico::
 
 from __future__ import annotations
 
+from decimal import Decimal
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional
 
 from PySide6.QtCore import QThread, Signal
 
@@ -103,6 +104,8 @@ class ImportWorker(QThread):
         column_mapping: Diccionario ``{campo_destino: col_archivo}``.
                         Las columnas mapeadas a ``"(ignorar)"`` se descartan.
                         Campos destino: ``barcode``, ``name``, ``net_cost``, ``category``.
+        global_margin: Si se provee, sobreescribe el margen de ganancia de todas
+                       las filas del archivo importado.
         parent: QObject padre (opcional).
     """
 
@@ -115,12 +118,14 @@ class ImportWorker(QThread):
         session_factory: Callable,
         file_path: Path,
         column_mapping: dict[str, str],
+        global_margin: Optional[Decimal] = None,
         parent=None,
     ) -> None:
         super().__init__(parent)
         self._session_factory = session_factory
         self._file_path = file_path
         self._column_mapping = column_mapping
+        self._global_margin = global_margin
 
     def run(self) -> None:
         """Ejecuta el parsing + upsert en el hilo separado."""
@@ -148,7 +153,9 @@ class ImportWorker(QThread):
 
             self.progress_updated.emit(40)
 
-            parsed = BulkPriceImporter().parse_dataframe(df, self._column_mapping)
+            parsed = BulkPriceImporter().parse_dataframe(
+                df, self._column_mapping, global_margin=self._global_margin
+            )
 
             self.progress_updated.emit(70)
 

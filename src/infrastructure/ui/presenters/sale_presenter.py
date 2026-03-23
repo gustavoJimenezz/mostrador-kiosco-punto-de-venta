@@ -80,6 +80,17 @@ class ISaleView(Protocol):
         """
         ...
 
+    def show_change_dialog(self, total: Price) -> bool:
+        """Muestra el diálogo de vuelto para pago en efectivo (F12).
+
+        Args:
+            total: Monto total de la venta a cobrar.
+
+        Returns:
+            True si el cajero confirmó el cobro, False si canceló.
+        """
+        ...
+
 
 class SalePresenter:
     """Presenter del punto de venta (MVP).
@@ -205,6 +216,22 @@ class SalePresenter:
             return None
 
         return self._view.show_payment_dialog()
+
+    def on_cash_payment_requested(self) -> Optional[PaymentMethod]:
+        """Maneja F12: valida carrito y muestra ChangeDialog (efectivo implícito).
+
+        Retorna PaymentMethod.CASH si el cajero confirmó el cobro en efectivo,
+        o None si el carrito está vacío o el cajero canceló el diálogo.
+
+        Returns:
+            PaymentMethod.CASH si confirmado, None en caso contrario.
+        """
+        if not self._cart:
+            self._view.show_error("Carrito vacío. Escanee un producto primero.")
+            return None
+
+        confirmed = self._view.show_change_dialog(self.get_total())
+        return PaymentMethod.CASH if confirmed else None
 
     def on_new_sale(self) -> None:
         """F1: Inicia una nueva venta limpiando el carrito."""

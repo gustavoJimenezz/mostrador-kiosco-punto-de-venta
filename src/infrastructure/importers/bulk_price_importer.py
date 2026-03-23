@@ -97,6 +97,7 @@ class BulkPriceImporter:
         self,
         df: pl.DataFrame,
         column_mapping: dict[str, str] | None = None,
+        global_margin: Decimal | None = None,
     ) -> ParseResult:
         """Valida y construye DTOs desde un DataFrame ya cargado.
 
@@ -105,12 +106,18 @@ class BulkPriceImporter:
         ``_UNASSIGNED`` o ``_IGNORE`` se omiten. El campo destino ``net_cost``
         se traduce internamente a ``cost_price`` para el validador.
 
+        Si ``global_margin`` se provee, sobreescribe incondicionalmente el
+        ``margin_percent`` de cada fila, ignorando el valor del archivo.
+
         Args:
             df: DataFrame de Polars (todo como String).
             column_mapping: Mapeo ``{campo_destino: nombre_columna_archivo}``.
                             Campos destino: ``barcode``, ``name``, ``net_cost``,
                             ``category``.
                             Si es None, se usa el DataFrame sin modificaciones.
+            global_margin: Margen de ganancia porcentual a aplicar a todas las
+                           filas. Si es None, se usa el valor del archivo o el
+                           default de 30%.
 
         Returns:
             ParseResult con filas válidas y errores acumulados.
@@ -130,13 +137,18 @@ class BulkPriceImporter:
             if rename_map:
                 df = df.rename(rename_map)
 
-        return self._validate_and_build(df)
+        return self._validate_and_build(df, global_margin=global_margin)
 
-    def _validate_and_build(self, df: pl.DataFrame) -> ParseResult:
+    def _validate_and_build(
+        self,
+        df: pl.DataFrame,
+        global_margin: Decimal | None = None,
+    ) -> ParseResult:
         """Valida el schema del DataFrame y construye los DTOs.
 
         Args:
             df: DataFrame de Polars (todo como String).
+            global_margin: Si se provee, sobreescribe el margen de cada fila.
 
         Returns:
             ParseResult con filas válidas y errores acumulados.
@@ -153,7 +165,7 @@ class BulkPriceImporter:
 
         for row_idx, row_data in enumerate(df.iter_rows(named=True), start=2):
             # row_idx comienza en 2 (fila 1 = encabezado)
-            self._process_row(row_idx, row_data, result)
+            self._process_row(row_idx, row_data, result, global_margin=global_margin)
 
         return result
 
@@ -162,6 +174,7 @@ class BulkPriceImporter:
         row_number: int,
         row_data: dict,
         result: ParseResult,
+        global_margin: Decimal | None = None,
     ) -> None:
         """Valida y convierte una fila individual.
 
@@ -171,6 +184,7 @@ class BulkPriceImporter:
             row_number: Número de fila en el archivo original (base 2 por encabezado).
             row_data: Diccionario con los valores de la fila como strings.
             result: ParseResult donde acumular válidos o errores.
+            global_margin: Si se provee, reemplaza incondicionalmente el margen de la fila.
         """
         barcode = (row_data.get("barcode") or "").strip()
 
@@ -207,19 +221,22 @@ class BulkPriceImporter:
             )
             return
 
-        margin_raw = (
-            row_data.get("margin_percent") or _OPTIONAL_DEFAULTS["margin_percent"]
-        ).strip()
-        margin_percent = self._parse_decimal(margin_raw)
-        if margin_percent is None or margin_percent < Decimal("0"):
-            result.errors.append(
-                ImportRowError(
-                    row_number=row_number,
-                    barcode=barcode,
-                    reason=f"'margin_percent' inválido: '{margin_raw}'.",
+        if global_margin is not None:
+            margin_percent = global_margin
+        else:
+            margin_raw = (
+                row_data.get("margin_percent") or _OPTIONAL_DEFAULTS["margin_percent"]
+            ).strip()
+            margin_percent = self._parse_decimal(margin_raw)
+            if margin_percent is None or margin_percent < Decimal("0"):
+                result.errors.append(
+                    ImportRowError(
+                        row_number=row_number,
+                        barcode=barcode,
+                        reason=f"'margin_percent' inválido: '{margin_raw}'.",
+                    )
                 )
-            )
-            return
+                return
 
         stock = self._parse_int(
             (row_data.get("stock") or _OPTIONAL_DEFAULTS["stock"]).strip()
@@ -264,12 +281,13 @@ class BulkPriceImporter:
 
     @staticmethod
     def _parse_decimal(value: str) -> Decimal | None:
-        """Convierte un string numérico en formato argentino a Decimal.
+        """Convierte un string numérico a Decimal detectando el formato automáticamente.
 
-        Soporta:
-            - "1.250,50"  → 1250.50  (separador de miles = punto, decimal = coma)
-            - "1250.50"   → 1250.50  (formato inglés estándar)
-            - "1250"      → 1250.00
+        Heurística:
+            - Si contiene coma → formato argentino (coma=decimal, punto=miles).
+              Ej: "1.250,50" → Decimal("1250.50"), "843,00" → Decimal("843.00").
+            - Si no contiene coma → formato inglés o entero (punto=decimal).
+              Ej: "843.00" → Decimal("843.00"), "1250" → Decimal("1250").
 
         Args:
             value: String numérico a convertir.
@@ -280,15 +298,15 @@ class BulkPriceImporter:
         if not value:
             return None
         try:
-            # Formato argentino: eliminar puntos de miles, reemplazar coma decimal
-            normalized = value.replace(".", "").replace(",", ".")
+            if "," in value:
+                # Formato argentino: eliminar puntos de miles, reemplazar coma decimal
+                normalized = value.replace(".", "").replace(",", ".")
+            else:
+                # Formato inglés o entero: usar tal cual
+                normalized = value
             return Decimal(normalized)
         except InvalidOperation:
-            # Intentar formato inglés estándar como fallback
-            try:
-                return Decimal(value)
-            except InvalidOperation:
-                return None
+            return None
 
     @staticmethod
     def _parse_int(value: str) -> int | None:

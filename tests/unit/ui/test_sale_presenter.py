@@ -48,6 +48,8 @@ class FakeView:
         self.errors: list[str] = []
         self.sale_confirmed: Optional[Sale] = None
         self.payment_dialog_return: Optional[PaymentMethod] = PaymentMethod.CASH
+        self.change_dialog_return: bool = True
+        self.last_change_dialog_total: Optional[Price] = None
 
     def show_product_in_cart(self, product: Product, quantity: int) -> None:
         self.cart_items[product.id] = (product, quantity)
@@ -69,6 +71,10 @@ class FakeView:
 
     def show_payment_dialog(self) -> Optional[PaymentMethod]:
         return self.payment_dialog_return
+
+    def show_change_dialog(self, total: Price) -> bool:
+        self.last_change_dialog_total = total
+        return self.change_dialog_return
 
 
 # ---------------------------------------------------------------------------
@@ -419,3 +425,51 @@ class TestSearchByName:
         presenter.on_cash_close()
 
         assert len(view.errors) == 1
+
+
+# ---------------------------------------------------------------------------
+# Tests: flujo F12 — pago en efectivo con ChangeDialog
+# ---------------------------------------------------------------------------
+
+
+class TestCashPayment:
+    def test_cash_payment_empty_cart_shows_error_returns_none(
+        self, presenter: SalePresenter, view: FakeView
+    ) -> None:
+        result = presenter.on_cash_payment_requested()
+
+        assert result is None
+        assert len(view.errors) == 1
+        assert "vacío" in view.errors[0].lower()
+
+    def test_cash_payment_confirmed_returns_cash_method(
+        self, presenter: SalePresenter, view: FakeView, product: Product
+    ) -> None:
+        view.change_dialog_return = True
+        presenter.on_barcode_found(product)
+
+        result = presenter.on_cash_payment_requested()
+
+        assert result == PaymentMethod.CASH
+
+    def test_cash_payment_cancelled_returns_none(
+        self, presenter: SalePresenter, view: FakeView, product: Product
+    ) -> None:
+        view.change_dialog_return = False
+        presenter.on_barcode_found(product)
+
+        result = presenter.on_cash_payment_requested()
+
+        assert result is None
+
+    def test_cash_payment_passes_correct_total_to_dialog(
+        self, presenter: SalePresenter, view: FakeView
+    ) -> None:
+        p1 = _make_product(barcode="001", cost="100.00", margin="0.00", product_id=1)
+        p2 = _make_product(barcode="002", cost="200.00", margin="0.00", product_id=2)
+        presenter.on_barcode_found(p1)
+        presenter.on_barcode_found(p2)
+
+        presenter.on_cash_payment_requested()
+
+        assert view.last_change_dialog_total == Price("300.00")

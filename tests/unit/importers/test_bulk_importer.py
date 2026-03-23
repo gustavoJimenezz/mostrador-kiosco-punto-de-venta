@@ -283,6 +283,37 @@ class TestBulkPriceImporterParseDataframe:
         assert len(result.valid_rows) == 2
         assert result.errors == []
 
+    def test_global_margin_sobreescribe_margen_de_fila(self) -> None:
+        """global_margin reemplaza incondicionalmente el margin_percent de cada fila."""
+        import polars as pl
+
+        df = pl.DataFrame({
+            "barcode": ["7790001000001", "7790001000002"],
+            "name": ["Coca Cola", "Pepsi"],
+            "cost_price": ["1250", "1100"],
+            "margin_percent": ["20", "25"],
+        })
+
+        result = BulkPriceImporter().parse_dataframe(df, global_margin=Decimal("45"))
+
+        assert result.valid_rows[0].margin_percent == Decimal("45")
+        assert result.valid_rows[1].margin_percent == Decimal("45")
+
+    def test_sin_global_margin_usa_margen_del_archivo(self) -> None:
+        """Sin global_margin se respeta el margin_percent del archivo."""
+        import polars as pl
+
+        df = pl.DataFrame({
+            "barcode": ["7790001000001"],
+            "name": ["Coca Cola"],
+            "cost_price": ["1250"],
+            "margin_percent": ["20"],
+        })
+
+        result = BulkPriceImporter().parse_dataframe(df, global_margin=None)
+
+        assert result.valid_rows[0].margin_percent == Decimal("20")
+
 
 # ---------------------------------------------------------------------------
 # Tests: _parse_decimal (casos edge)
@@ -300,10 +331,14 @@ class TestParseDecimal:
         assert result == Decimal("1250.50")
 
     def test_formato_ingles(self) -> None:
-        """'1250.50' con formato inglés — el punto se elimina → '125050'."""
+        """'1250.50' con formato inglés — el punto es decimal → Decimal('1250.50')."""
         result = BulkPriceImporter._parse_decimal("1250.50")
-        # Comportamiento documentado: punto de miles se elimina primero
-        assert result == Decimal("125050")
+        assert result == Decimal("1250.50")
+
+    def test_formato_ingles_no_multiplica_por_100(self) -> None:
+        """'843.00' → Decimal('843.00'), no Decimal('84300') (bug previo)."""
+        result = BulkPriceImporter._parse_decimal("843.00")
+        assert result == Decimal("843.00")
 
     def test_entero_simple(self) -> None:
         """'500' → Decimal('500')."""

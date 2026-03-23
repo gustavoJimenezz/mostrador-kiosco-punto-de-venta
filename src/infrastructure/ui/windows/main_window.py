@@ -8,8 +8,12 @@ Atajos de teclado (keyboard-first):
     F1  - Nueva venta (limpia carrito)
     F2  - Activar/desactivar búsqueda por nombre
     F4  - Confirmar venta / Cobrar
+    F5  - Gestión de productos
+    F6  - Editar stock
+    F7  - Inyectar stock directamente
     F9  - Importar lista de precios CSV/Excel (importación masiva)
     F10 - Cierre de caja
+    F12 - Cobrar en efectivo con diálogo de vuelto
     Esc - Cancelar búsqueda, volver al barcode_input
     Enter (en barcode_input)  - Buscar producto por código
     Enter (en search_results) - Agregar producto seleccionado al carrito
@@ -39,6 +43,8 @@ from PySide6.QtWidgets import (
 from src.domain.models.price import Price
 from src.domain.models.product import Product
 from src.domain.models.sale import PaymentMethod, Sale
+from src.infrastructure.ui.dialogs.change_dialog import ChangeDialog
+from src.infrastructure.ui.widgets.total_widget import TotalWidget
 from src.infrastructure.ui.workers.db_worker import (
     ProcessSaleWorker,
     SearchByBarcodeWorker,
@@ -87,6 +93,24 @@ class MainWindow(QMainWindow):
         """
         return self._product_management_view
 
+    @property
+    def stock_edit_view(self):
+        """Retorna la instancia de StockEditView (pestaña de edición de stock).
+
+        Returns:
+            StockEditView insertada en el tab "Editar Stock (F6)".
+        """
+        return self._stock_edit_view
+
+    @property
+    def stock_inject_view(self):
+        """Retorna la instancia de StockInjectView (pestaña de inyección de stock).
+
+        Returns:
+            StockInjectView insertada en el tab "Inyectar Stock (F7)".
+        """
+        return self._stock_inject_view
+
     def set_presenter(self, presenter) -> None:
         """Inyecta el SalePresenter en la ventana.
 
@@ -110,6 +134,22 @@ class MainWindow(QMainWindow):
             presenter: ProductPresenter ya configurado con la vista.
         """
         self._product_management_view.set_presenter(presenter)
+
+    def set_stock_edit_presenter(self, presenter) -> None:
+        """Inyecta el StockEditPresenter en la StockEditView.
+
+        Args:
+            presenter: StockEditPresenter ya configurado con la vista.
+        """
+        self._stock_edit_view.set_presenter(presenter)
+
+    def set_stock_inject_presenter(self, presenter) -> None:
+        """Inyecta el StockInjectPresenter en la StockInjectView.
+
+        Args:
+            presenter: StockInjectPresenter ya configurado con la vista.
+        """
+        self._stock_inject_view.set_presenter(presenter)
 
     # ------------------------------------------------------------------
     # ISaleView implementation
@@ -144,8 +184,8 @@ class MainWindow(QMainWindow):
         self._cart_table.setItem(row, 3, QTableWidgetItem(f"${subtotal.amount:,.2f}"))
 
     def update_total(self, total: Price) -> None:
-        """Actualiza el label del total de la venta."""
-        self._total_label.setText(f"TOTAL: ${total.amount:,.2f}")
+        """Actualiza el widget del total de la venta."""
+        self._total_widget.set_total(total)
 
     def show_search_results(self, products: list[Product]) -> None:
         """Muestra la lista de resultados de búsqueda por nombre."""
@@ -184,6 +224,17 @@ class MainWindow(QMainWindow):
         """
         return _PaymentDialog.select(self)
 
+    def show_change_dialog(self, total: Price) -> bool:
+        """Muestra el diálogo de vuelto para pago en efectivo (F12).
+
+        Args:
+            total: Monto total de la venta a cobrar.
+
+        Returns:
+            True si el cajero confirmó el cobro, False si canceló.
+        """
+        return ChangeDialog.show_and_confirm(total, self)
+
     # ------------------------------------------------------------------
     # Configuración interna
     # ------------------------------------------------------------------
@@ -220,6 +271,19 @@ class MainWindow(QMainWindow):
             session_factory=self._session_factory
         )
         self._tab_widget.addTab(self._product_management_view, "Productos (F5)")
+
+        # Tab 3: Editar Stock (F6) — construido programáticamente
+        from src.infrastructure.ui.views.stock_edit_view import StockEditView
+
+        self._stock_edit_view = StockEditView(session_factory=self._session_factory)
+        self._tab_widget.addTab(self._stock_edit_view, "Editar Stock (F6)")
+
+        # Tab 4: Inyectar Stock (F7) — construido programáticamente
+        from src.infrastructure.ui.views.stock_inject_view import StockInjectView
+
+        self._stock_inject_view = StockInjectView(session_factory=self._session_factory)
+        self._tab_widget.addTab(self._stock_inject_view, "Inyectar Stock (F7)")
+
         self._tab_widget.currentChanged.connect(self._on_tab_changed)
 
         self._barcode_input = ui_widget.findChild(
@@ -238,7 +302,15 @@ class MainWindow(QMainWindow):
             __import__("PySide6.QtWidgets", fromlist=["QTableWidget"]).QTableWidget,
             "cart_table",
         )
-        self._total_label = ui_widget.findChild(QLabel, "total_label")
+        original_total_label = ui_widget.findChild(QLabel, "total_label")
+        self._total_widget = TotalWidget()
+        self._total_widget.setObjectName("total_label")
+        if original_total_label is not None:
+            parent_layout = original_total_label.parent().layout()
+            if parent_layout is not None:
+                parent_layout.replaceWidget(original_total_label, self._total_widget)
+            original_total_label.setParent(None)
+        self._total_widget.set_total(Price("0"))
 
         btn_new = ui_widget.findChild(
             __import__("PySide6.QtWidgets", fromlist=["QPushButton"]).QPushButton,
@@ -268,13 +340,16 @@ class MainWindow(QMainWindow):
         self._barcode_input.setFocus()
 
     def _setup_shortcuts(self) -> None:
-        """Registra los atajos de teclado globales F1-F10 y Escape."""
+        """Registra los atajos de teclado globales F1-F12 y Escape."""
         QShortcut(QKeySequence("F1"), self).activated.connect(self._on_new_sale)
         QShortcut(QKeySequence("F2"), self).activated.connect(self._toggle_search)
         QShortcut(QKeySequence("F4"), self).activated.connect(self._on_confirm_sale)
         QShortcut(QKeySequence("F5"), self).activated.connect(self._on_open_products)
+        QShortcut(QKeySequence("F6"), self).activated.connect(self._on_open_stock_edit)
+        QShortcut(QKeySequence("F7"), self).activated.connect(self._on_open_stock_inject)
         QShortcut(QKeySequence("F9"), self).activated.connect(self._on_open_import)
         QShortcut(QKeySequence("F10"), self).activated.connect(self._on_cash_close)
+        QShortcut(QKeySequence("F12"), self).activated.connect(self._on_cash_payment)
         QShortcut(QKeySequence("Escape"), self).activated.connect(self._on_escape)
 
     # ------------------------------------------------------------------
@@ -346,23 +421,54 @@ class MainWindow(QMainWindow):
         self._tab_widget.setCurrentIndex(2)
         self._product_management_view.on_view_activated()
 
+    def _on_open_stock_edit(self) -> None:
+        """F6: navega al tab de edición de stock."""
+        self._tab_widget.setCurrentIndex(3)
+        self._stock_edit_view.on_view_activated()
+
+    def _on_open_stock_inject(self) -> None:
+        """F7: navega al tab de inyección directa de stock."""
+        self._tab_widget.setCurrentIndex(4)
+        self._stock_inject_view.on_view_activated()
+
     def _on_open_import(self) -> None:
         """F9: navega al tab de importación masiva de lista de precios."""
         self._tab_widget.setCurrentIndex(1)
 
     def _on_tab_changed(self, index: int) -> None:
-        """Dispara on_view_activated al cambiar al tab de productos.
+        """Dispara on_view_activated al cambiar al tab de productos o stock.
 
         Args:
             index: Índice del tab activado.
         """
         if index == 2:
             self._product_management_view.on_view_activated()
+        elif index == 3:
+            self._stock_edit_view.on_view_activated()
+        elif index == 4:
+            self._stock_inject_view.on_view_activated()
 
     def _on_cash_close(self) -> None:
         """F10: cierre de caja."""
         if self._presenter:
             self._presenter.on_cash_close()
+
+    def _on_cash_payment(self) -> None:
+        """F12: finalización de venta en efectivo con diálogo de vuelto."""
+        if not self._presenter:
+            return
+
+        payment_method = self._presenter.on_cash_payment_requested()
+        if payment_method is None:
+            return
+
+        cart = self._presenter.get_cart()
+        worker = ProcessSaleWorker(self._session_factory, cart, payment_method)
+        worker.sale_completed.connect(self._presenter.on_sale_completed)
+        worker.error_occurred.connect(self._presenter.on_sale_error)
+        worker.finished.connect(lambda: self._cleanup_worker(worker))
+        self._active_workers.append(worker)
+        worker.start()
 
     def _toggle_search(self) -> None:
         """F2: activa o desactiva el campo de búsqueda por nombre."""

@@ -8,6 +8,7 @@ Workers disponibles:
     LoadProductWorker     — carga un producto + lista de categorías disponibles.
     SaveProductWorker     — persiste (INSERT/UPDATE) un producto.
     DeleteProductWorker   — elimina un producto por ID.
+    UpdateStockWorker     — incrementa o decrementa el stock de un producto.
 """
 
 from __future__ import annotations
@@ -130,6 +131,7 @@ class SaveProductWorker(QThread):
             repo = MariadbProductRepository(session)
             saved = repo.save(self._product)
             session.commit()
+            session.refresh(saved)
             self.save_completed.emit(saved)
         except Exception as exc:
             session.rollback()
@@ -171,6 +173,75 @@ class DeleteProductWorker(QThread):
             repo.delete(self._product_id)
             session.commit()
             self.delete_completed.emit()
+        except Exception as exc:
+            session.rollback()
+            self.error_occurred.emit(str(exc))
+        finally:
+            session.close()
+
+
+class UpdateStockWorker(QThread):
+    """Worker que incrementa o decrementa el stock de un producto.
+
+    Signals:
+        stock_updated (object): Emitida con el ``Product`` actualizado.
+        error_occurred (str): Emitida con mensaje de error.
+
+    Args:
+        session_factory: Callable que retorna una nueva Session de SQLAlchemy.
+        product_id: ID del producto a actualizar.
+        operation: ``"increment"`` para agregar stock, ``"decrement"`` para retirar.
+        quantity: Cantidad a modificar (debe ser > 0).
+        parent: QObject padre (opcional).
+    """
+
+    stock_updated = Signal(object)
+    error_occurred = Signal(str)
+
+    def __init__(
+        self,
+        session_factory: Callable,
+        product_id: int,
+        operation: str,
+        quantity: int,
+        parent=None,
+    ) -> None:
+        super().__init__(parent)
+        self._session_factory = session_factory
+        self._product_id = product_id
+        self._operation = operation
+        self._quantity = quantity
+
+    def run(self) -> None:
+        """Actualiza el stock del producto y hace commit en el hilo separado."""
+        session = self._session_factory()
+        try:
+            from src.infrastructure.persistence.mariadb_product_repository import (
+                MariadbProductRepository,
+            )
+
+            repo = MariadbProductRepository(session)
+            product = repo.get_by_id(self._product_id)
+            if product is None:
+                self.error_occurred.emit(
+                    f"Producto con id={self._product_id} no encontrado."
+                )
+                return
+
+            if self._operation == "increment":
+                product.increment_stock(self._quantity)
+            else:
+                product.decrement_stock(self._quantity)
+
+            repo.save(product)
+            session.commit()
+            # Recargar atributos mientras la sesión sigue abierta.
+            # Las señales Qt entre hilos son encoladas: cuando el slot del
+            # hilo principal se ejecuta, el finally ya cerró la sesión.
+            # Sin refresh, los atributos quedan "expired" y lanzan
+            # DetachedInstanceError al accederse desde el slot.
+            session.refresh(product)
+            self.stock_updated.emit(product)
         except Exception as exc:
             session.rollback()
             self.error_occurred.emit(str(exc))

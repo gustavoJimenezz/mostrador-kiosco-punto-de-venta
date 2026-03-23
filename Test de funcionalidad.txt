@@ -1,0 +1,29 @@
+** Test de funcionalidad **
+scaner codigo: agrega productos con el scaner de barra de codigo 
+
+Falta:
+Crear manual de usuario
+
+Boton de elimar producto del carrito 
+
+Respaldo de carrito al cerrar el programa
+
+Fucionar el input de barra de codigo con el input de f2 buscar, que no sea necesario apretar f2 para buscar (por el momento, se planea que el boton f2 se use en el futuro para dar el mismo resultado pero con mas detalle), y al buscar por palabra o por letras, que de el mismo resultado del que ya tiene el buscador.
+
+Texto TOTAL mas sincronico
+
+Boton f4 cobrar, tiene que tener el siguiente comportamiento.
+borrar la opcion de checkbox de efectivo o debito, los usuarios van a pagar en efectivo, apariencia de la ventana modal  de 3 cuarto de del tama;o de la ventana princippal 
+donde se pueda agregar con cuanta plata pago el cliente, por defecto que el input venga value del total de la compra, con un boton confirmar o cancelar compra, que tenga como atajo el boton enter y que de el resultado para devolver el cambio 
+
+control de stock: 
+
+Editar el stock en la ventana de Productos.
+
+Crear otra ventana donde se pueda editar el stock (editar) que se puede llamar "editar stock " con la estrauctura siguiente, se van a dividir en dos secciones una abajo de la otra la primera seccion (parte de arriba) un input para poder buscar por codigo de barra o por letras 0 nombres como el mismo buscador que se encuentra en la ventana de Venta con f2 y cuando se encuentra o selecciona un producto de los resultados de coincidencia poder editar el stock de la siguiente manera:
+una opcion de agregar stock y otro de retirar stock, teniendo como primera opcion y por defecto el de agregar stock esta misma tiene que tener un input donde se agrega la cantidad que se quiere restar al valor del stock del producto esto se tiene que  hacer restando o sumando sobre el stock real del producto(para una funcionalidad practica).
+Segunda seccion (parte de abajo) que va a mostrar un listado de los productos que se estan editando mostrando todos los detalle e informacion del producto con el stock actualizado.
+
+Crear otra ventana que se va a llamar "inyectar stock directamente" con la estrauctura siguiente, se van a dividir en dos secciones una abajo de la otra que  tenga un input directo para agregar el numero que se va a sumar al stock del producto y al lado otro inpunt donde se va a colocar la barra de codigo del producto con la siguiente funcionalidad: si se encutra el producto con el codigo de barra sumarle directamente el stock, si no se encuentra ningun producto, avisar que no se encontro el producto, y si se busca con letras o nombres como el mismo buscador que se encuentra en la ventana de Venta con f2 y cuando se encuentra o selecciona un producto de los resultados de coincidencia agrgar el stock que se ingreso.
+Segunda seccion (parte de abajo) que va a mostrar un listado de los productos que se estan editando mostrando todos los detalle e informacion del producto con el stock actualizado.
+

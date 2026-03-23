@@ -37,7 +37,7 @@ class Product:
     barcode: str
     name: str
     current_cost: Decimal
-    margin_percent: Decimal
+    margin_percent: Decimal = Decimal("30")
     stock: int = 0
     min_stock: int = 0
     category_id: Optional[int] = None

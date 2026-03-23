@@ -88,9 +88,9 @@ class MariadbProductRepository:
                 (violación de constraint UNIQUE).
         """
         try:
-            self._session.add(product)
+            merged = self._session.merge(product)
             self._session.flush()
-            return product
+            return merged
         except IntegrityError as exc:
             self._session.rollback()
             raise ValueError(

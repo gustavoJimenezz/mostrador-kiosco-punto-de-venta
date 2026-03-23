@@ -27,6 +27,8 @@ from src.infrastructure.ui.app_config import configure_high_dpi
 from src.infrastructure.ui.presenters.import_presenter import ImportPresenter
 from src.infrastructure.ui.presenters.product_presenter import ProductPresenter
 from src.infrastructure.ui.presenters.sale_presenter import SalePresenter
+from src.infrastructure.ui.presenters.stock_edit_presenter import StockEditPresenter
+from src.infrastructure.ui.presenters.stock_inject_presenter import StockInjectPresenter
 from src.infrastructure.ui.windows.main_window import MainWindow
 
 
@@ -62,6 +64,12 @@ def main() -> int:
 
     product_presenter = ProductPresenter(view=window.product_management_view)
     window.set_product_presenter(product_presenter)
+
+    stock_edit_presenter = StockEditPresenter(view=window.stock_edit_view)
+    window.set_stock_edit_presenter(stock_edit_presenter)
+
+    stock_inject_presenter = StockInjectPresenter(view=window.stock_inject_view)
+    window.set_stock_inject_presenter(stock_inject_presenter)
 
     window.show()
 

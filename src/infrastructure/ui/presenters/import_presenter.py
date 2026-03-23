@@ -16,6 +16,7 @@ Flujo:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 from pathlib import Path
 from typing import Callable, Optional, Protocol, runtime_checkable
 
@@ -212,6 +213,8 @@ class ImportPresenter:
             self._view.show_status("No hay archivo seleccionado.", is_error=True)
             return
 
+        global_margin: Optional[Decimal] = column_mapping.pop("global_margin", None)
+
         from src.infrastructure.ui.workers.import_worker import ImportWorker
 
         self._view.show_status("Importando…")
@@ -219,7 +222,10 @@ class ImportPresenter:
         self._view.enable_import_button(False)
 
         worker = ImportWorker(
-            self._session_factory, self._current_file_path, column_mapping
+            self._session_factory,
+            self._current_file_path,
+            column_mapping,
+            global_margin=global_margin,
         )
         worker.progress_updated.connect(self.on_progress_updated)
         worker.import_completed.connect(self.on_import_completed)
