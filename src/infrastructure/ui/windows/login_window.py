@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
-
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QDialog,
-    QDoubleSpinBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -41,7 +38,6 @@ class LoginWindow(QDialog):
         self._presenter = presenter
         self._presenter.set_view(self)
         self._selected_user: User | None = None
-        self._needs_opening: bool = presenter.needs_opening_amount()
 
         self.setWindowTitle("Mostrador POS — Iniciar sesión")
         self.setMinimumSize(420, 340)
@@ -94,25 +90,6 @@ class LoginWindow(QDialog):
         pin_hint.setAlignment(Qt.AlignCenter)
         pin_hint.setStyleSheet("color: #64748b; font-size: 13px;")
         pin_layout.addWidget(pin_hint)
-
-        # Monto inicial de caja (visible solo cuando no hay sesión abierta)
-        self._row_initial = QWidget()
-        row_initial_layout = QHBoxLayout(self._row_initial)
-        row_initial_layout.setContentsMargins(0, 0, 0, 0)
-        lbl_initial = QLabel("Monto inicial de caja ($):")
-        lbl_initial.setStyleSheet("color: #374151; font-size: 13px;")
-        row_initial_layout.addWidget(lbl_initial)
-        self._spin_initial = QDoubleSpinBox()
-        self._spin_initial.setRange(0, 999999.99)
-        self._spin_initial.setDecimals(2)
-        self._spin_initial.setSingleStep(100)
-        self._spin_initial.setStyleSheet(
-            "font-size: 13px; padding: 4px; color: #1e293b;"
-            "border: 1px solid #d1d5db; border-radius: 6px; background: white;"
-        )
-        row_initial_layout.addWidget(self._spin_initial)
-        pin_layout.addWidget(self._row_initial)
-        self._row_initial.setVisible(self._needs_opening)
 
         self._pin_input = QLineEdit()
         self._pin_input.setEchoMode(QLineEdit.Password)
@@ -215,12 +192,7 @@ class LoginWindow(QDialog):
         if not pin:
             self.show_error("Ingresá tu PIN.")
             return
-        opening_amount = (
-            Decimal(str(self._spin_initial.value())) if self._needs_opening else None
-        )
-        success = self._presenter.on_pin_submitted(
-            self._selected_user.id, pin, opening_amount
-        )
+        success = self._presenter.on_pin_submitted(self._selected_user.id, pin)
         if success:
             self.accept()
 

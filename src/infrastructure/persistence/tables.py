@@ -168,11 +168,6 @@ cash_movements_table = Table(
         nullable=False,
     ),
     Column("amount", Numeric(12, 2), nullable=False),
-    Column(
-        "movement_type",
-        SAEnum("INGRESO", "EGRESO", name="movement_type_enum"),
-        nullable=False,
-    ),
     Column("description", String(250), nullable=False, server_default=""),
     Column("created_at", DateTime, nullable=False),
     Index("ix_cash_movements_cash_close_id", "cash_close_id"),

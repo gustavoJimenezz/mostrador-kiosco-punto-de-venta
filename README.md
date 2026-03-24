@@ -113,3 +113,49 @@ POS_TEST_DB_URL="mysql+pymysql://root:root@localhost:3306/kiosco_test" \
 | `F10` | Cierre de caja *(próximamente)* |
 | `Esc` | Cancelar búsqueda |
 | `Enter` | Confirmar / buscar barcode |
+
+---
+
+## Herramientas de desarrollo
+
+### Hot-reload de vistas (Ctrl+R)
+
+Durante el desarrollo es posible recargar la vista de la pestaña activa **sin reiniciar la aplicación** presionando `Ctrl+R`.
+
+**Cómo funciona:**
+
+1. Recarga el módulo Python de la vista con `importlib.reload()`.
+2. Destruye el widget actual y crea una nueva instancia de la clase.
+3. Re-inyecta el presenter existente en la nueva vista.
+
+**Pestañas compatibles:**
+
+| Pestaña | Vista recargada |
+|---------|----------------|
+| F9 — Importar | `ImportView` |
+| F5 — Productos | `ProductManagementView` |
+| F6 — Editar Stock | `StockEditView` |
+| F7 — Inyectar Stock | `StockInjectView` |
+| F2 — Historial | `SalesHistoryView` |
+| Historial de caja | `CashHistoryView` |
+
+> La pestaña principal (venta) no es recargable porque su layout proviene de un archivo `.ui`.
+
+**Limitación:** no recarga dependencias transitivas. Si el cambio está en un widget importado por la vista, reiniciar la aplicación.
+
+### Cómo eliminar esta funcionalidad antes de producción
+
+Todo el código de hot-reload está marcado con la etiqueta `[DEV_ONLY]`. Para ubicar y eliminar todos los puntos:
+
+```bash
+grep -rn "\[DEV_ONLY\]" src/
+```
+
+Archivos afectados: `src/infrastructure/ui/windows/main_window.py`
+
+Elementos a eliminar:
+- `import importlib` (línea marcada con `[DEV_ONLY]`)
+- Línea `self._tab_import = tab_import` en `_load_ui()`
+- Líneas `self._*_presenter = presenter` en cada setter `set_*_presenter()`
+- Línea del shortcut `Ctrl+R` en `_setup_shortcuts()`
+- Bloque completo delimitado por los comentarios `[DEV_ONLY]` (clase `_DEV_RELOAD_MAP` + método `_dev_reload_view()`)

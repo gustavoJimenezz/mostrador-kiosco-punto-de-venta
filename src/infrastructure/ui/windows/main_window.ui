@@ -154,6 +154,13 @@ QPushButton#btn_delete_item:disabled {
     border-color: #e5e7eb;
 }
 
+/* HINT CANTIDAD MÚLTIPLE */
+QLabel#barcode_hint_label {
+    color: #6b7280;
+    font-size: 11px;
+    padding: 0 4px;
+}
+
 /* HINT ATAJOS CARRITO */
 QLabel#hint_delete_label {
     color: #374151;
@@ -255,6 +262,14 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
              </widget>
             </item>
            </layout>
+          </item>
+          <item>
+           <!-- Hint: cómo agregar cantidad múltiple -->
+           <widget class="QLabel" name="barcode_hint_label">
+            <property name="text">
+             <string>Ingresá: [Cantidad] * [Producto: Código/Nombre] para cargar varias unidades (ej: 3 * 7790001234)</string>
+            </property>
+           </widget>
           </item>
           <item>
            <!-- Lista de resultados de búsqueda por nombre -->

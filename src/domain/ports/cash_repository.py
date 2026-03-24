@@ -53,7 +53,7 @@ class CashMovementRepository(Protocol):
     Examples:
         >>> class MockMovRepo:
         ...     def save(self, m: CashMovement) -> CashMovement: return m
-        ...     def list_by_cash_close(self, cid: int) -> list: return []
+        ...     def list_by_cash_close(self, cid: int) -> list[CashMovement]: return []
         >>> isinstance(MockMovRepo(), CashMovementRepository)
         True
     """

@@ -25,7 +25,7 @@ Workers disponibles:
 
 from __future__ import annotations
 
-from typing import Callable
+from typing import Callable, Optional
 
 from PySide6.QtCore import QThread, Signal
 
@@ -142,6 +142,7 @@ class ProcessSaleWorker(QThread):
         session_factory: Callable que retorna una nueva Session de SQLAlchemy.
         cart: Diccionario ``{product_id: (Product, quantity)}``.
         payment_method: Método de pago seleccionado por el cajero.
+        cash_close_id: ID del arqueo de caja activo (para vincular la venta).
         parent: QObject padre (opcional).
     """
 
@@ -153,12 +154,14 @@ class ProcessSaleWorker(QThread):
         session_factory: Callable,
         cart: dict,
         payment_method: PaymentMethod,
+        cash_close_id: Optional[int] = None,
         parent=None,
     ) -> None:
         super().__init__(parent)
         self._session_factory = session_factory
         self._cart = cart
         self._payment_method = payment_method
+        self._cash_close_id = cash_close_id
 
     def run(self) -> None:
         """Ejecuta el procesamiento de la venta en el hilo separado."""
@@ -174,7 +177,7 @@ class ProcessSaleWorker(QThread):
             product_repo = MariadbProductRepository(session)
             sale_repo = MariadbSaleRepository(session)
             uc = ProcessSale(sale_repo, product_repo)
-            sale = uc.execute(self._cart, self._payment_method)
+            sale = uc.execute(self._cart, self._payment_method, self._cash_close_id)
             self.sale_completed.emit(sale)
         except Exception as exc:
             self.error_occurred.emit(str(exc))

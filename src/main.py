@@ -32,13 +32,11 @@ from src.infrastructure.persistence.mappings import configure_mappings
 from src.infrastructure.persistence.mariadb_product_repository import (
     MariadbProductRepository,
 )
-from src.infrastructure.persistence.mariadb_cash_repository import (
-    MariadbCashRepository,
-)
 from src.infrastructure.persistence.mariadb_user_repository import (
     MariadbUserRepository,
 )
 from src.infrastructure.ui.app_config import configure_high_dpi
+from src.infrastructure.ui.presenters.cash_presenter import CashPresenter
 from src.infrastructure.ui.presenters.import_presenter import ImportPresenter
 from src.infrastructure.ui.presenters.login_presenter import LoginPresenter
 from src.infrastructure.ui.presenters.product_presenter import ProductPresenter
@@ -80,8 +78,7 @@ def main() -> int:
     with session_factory() as login_session:
         user_repo = MariadbUserRepository(login_session)
         auth_use_case = AuthenticateUser(user_repo)
-        cash_repo = MariadbCashRepository(login_session)
-        login_presenter = LoginPresenter(auth_use_case, user_repo, cash_repo)
+        login_presenter = LoginPresenter(auth_use_case, user_repo)
         login_window = LoginWindow(login_presenter)
         result = login_window.exec()
 
@@ -120,6 +117,9 @@ def main() -> int:
 
     cash_history_presenter = CashHistoryPresenter(view=window.cash_history_view)
     window.set_cash_history_presenter(cash_history_presenter)
+
+    cash_presenter = CashPresenter(view=window.cash_close_view)
+    window.set_cash_presenter(cash_presenter)
 
     # Caso de uso para desbloquear pestañas admin desde el botón "🔒 Administrador".
     # Usa una sesión dedicada de larga vida (cierra con la app).

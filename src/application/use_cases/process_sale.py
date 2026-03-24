@@ -9,6 +9,8 @@ vacío) y delega la persistencia atómica al SaleRepository.
 
 from __future__ import annotations
 
+from typing import Optional
+
 from src.domain.models.product import Product
 from src.domain.models.sale import PaymentMethod, Sale, SaleItem
 from src.domain.ports.product_repository import ProductRepository
@@ -54,6 +56,7 @@ class ProcessSale:
         self,
         cart: dict[int, tuple[Product, int]],
         payment_method: PaymentMethod,
+        cash_close_id: Optional[int] = None,
     ) -> Sale:
         """Procesa y persiste una venta completa.
 
@@ -65,6 +68,8 @@ class ProcessSale:
             cart: Diccionario ``{product_id: (Product, quantity)}`` con
                   los ítems a vender.
             payment_method: Método de pago seleccionado por el cajero.
+            cash_close_id: ID del arqueo de caja activo. Si se provee,
+                la venta queda vinculada a la sesión para el detalle de caja.
 
         Returns:
             Sale persistida con los ítems y price_at_sale registrado.
@@ -92,5 +97,9 @@ class ProcessSale:
             for product, quantity in cart.values()
         ]
 
-        sale = Sale(payment_method=payment_method, items=items)
+        sale = Sale(
+            payment_method=payment_method,
+            items=items,
+            cash_close_id=cash_close_id,
+        )
         return self._sale_repo.save(sale)

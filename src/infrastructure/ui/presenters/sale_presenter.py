@@ -141,15 +141,17 @@ class SalePresenter:
     # Callbacks de workers (resultados de operaciones DB asíncronas)
     # ------------------------------------------------------------------
 
-    def on_barcode_found(self, product: Product) -> None:
+    def on_barcode_found(self, product: Product, quantity: int = 1) -> None:
         """Maneja el resultado exitoso de búsqueda por barcode.
 
         Llamado por MainWindow cuando SearchByBarcodeWorker emite product_found.
 
         Args:
             product: Producto encontrado en la DB.
+            quantity: Cantidad a agregar al carrito (default 1). Se usa cuando
+                      el cajero prefija el input con ``N*`` (ej: ``3*7790001``).
         """
-        self._add_product_to_cart(product)
+        self._add_product_to_cart(product, quantity)
 
     def on_barcode_not_found(self, barcode: str) -> None:
         """Maneja el caso en que el barcode no existe en el catálogo.
@@ -206,13 +208,15 @@ class SalePresenter:
     # Acciones directas del cajero (síncronas)
     # ------------------------------------------------------------------
 
-    def on_product_selected_from_list(self, product: Product) -> None:
+    def on_product_selected_from_list(self, product: Product, quantity: int = 1) -> None:
         """Agrega al carrito un producto seleccionado de la lista de búsqueda.
 
         Args:
             product: Producto seleccionado por el cajero.
+            quantity: Cantidad a agregar al carrito (default 1). Se usa cuando
+                      el cajero prefijó el input con ``N*`` antes de buscar.
         """
-        self._add_product_to_cart(product)
+        self._add_product_to_cart(product, quantity)
 
     def on_confirm_sale_requested(self) -> Optional[PaymentMethod]:
         """Maneja F4: valida carrito y solicita el método de pago.
@@ -336,7 +340,7 @@ class SalePresenter:
     # Métodos privados
     # ------------------------------------------------------------------
 
-    def _add_product_to_cart(self, product: Product) -> None:
+    def _add_product_to_cart(self, product: Product, quantity: int = 1) -> None:
         """Agrega o incrementa un producto en el carrito y actualiza la UI.
 
         Bloquea la operación si no hay stock disponible para la cantidad
@@ -344,6 +348,7 @@ class SalePresenter:
 
         Args:
             product: Producto a agregar (requiere id asignado — no None).
+            quantity: Unidades a sumar al carrito (default 1).
         """
         if product.id is None:
             self._view.show_error(
@@ -353,7 +358,7 @@ class SalePresenter:
 
         if product.id in self._cart:
             current_product, current_qty = self._cart[product.id]
-            new_qty = current_qty + 1
+            new_qty = current_qty + quantity
             if new_qty > product.stock:
                 self._view.show_stock_error(
                     f"Sin stock suficiente para '{product.name}'.\n"
@@ -367,7 +372,13 @@ class SalePresenter:
                     f"'{product.name}' no tiene stock disponible."
                 )
                 return
-            self._cart[product.id] = (product, 1)
+            if quantity > product.stock:
+                self._view.show_stock_error(
+                    f"Sin stock suficiente para '{product.name}'.\n"
+                    f"Disponible: {product.stock}."
+                )
+                return
+            self._cart[product.id] = (product, quantity)
 
         _, quantity = self._cart[product.id]
         self._view.show_product_in_cart(product, quantity)

@@ -2,6 +2,10 @@
 
 Permite al cajero ingresar o egresar efectivo manualmente dentro de
 una sesión de caja abierta (ej: pago a proveedor, reposición de cambio).
+
+El signo del monto determina la dirección:
+- Positivo: ingreso de efectivo.
+- Negativo: egreso de efectivo.
 """
 
 from __future__ import annotations
@@ -9,7 +13,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from src.domain.models.cash_movement import CashMovement, MovementType
+from src.domain.models.cash_movement import CashMovement
 from src.domain.ports.cash_repository import CashMovementRepository
 
 
@@ -21,14 +25,16 @@ class AddCashMovement:
 
     Examples:
         >>> uc = AddCashMovement(repo)
-        >>> mov = uc.execute(
+        >>> ingreso = uc.execute(
         ...     cash_close_id=1,
         ...     amount=Decimal("2000.00"),
-        ...     movement_type=MovementType.EXPENSE,
+        ...     description="Fondo de cambio",
+        ... )
+        >>> egreso = uc.execute(
+        ...     cash_close_id=1,
+        ...     amount=Decimal("-500.00"),
         ...     description="Pago a proveedor",
         ... )
-        >>> mov.movement_type
-        <MovementType.EXPENSE: 'EGRESO'>
     """
 
     def __init__(self, movement_repo: CashMovementRepository) -> None:
@@ -38,27 +44,25 @@ class AddCashMovement:
         self,
         cash_close_id: int,
         amount: Decimal,
-        movement_type: MovementType,
         description: str,
     ) -> CashMovement:
         """Persiste el movimiento manual en el arqueo de caja indicado.
 
         Args:
             cash_close_id: ID del arqueo de caja donde registrar el movimiento.
-            amount: Monto del movimiento (debe ser mayor a cero).
-            movement_type: INGRESO o EGRESO.
+            amount: Monto del movimiento (positivo = ingreso, negativo = egreso).
+                No puede ser cero.
             description: Texto descriptivo del movimiento (requerido).
 
         Returns:
             CashMovement persistido con ``id`` asignado.
 
         Raises:
-            ValueError: Si el monto es <= 0 o la descripción está vacía.
+            ValueError: Si el monto es cero o la descripción está vacía.
         """
         movement = CashMovement(
             cash_close_id=cash_close_id,
             amount=amount,
-            movement_type=movement_type,
             description=description.strip(),
             created_at=datetime.now(),
         )

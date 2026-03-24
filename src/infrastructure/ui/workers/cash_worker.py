@@ -19,7 +19,7 @@ from typing import Callable, Optional
 from PySide6.QtCore import QThread, Signal
 
 from src.domain.models.cash_close import CashClose
-from src.domain.models.cash_movement import CashMovement, MovementType
+from src.domain.models.cash_movement import CashMovement
 
 
 class LoadCashStateWorker(QThread):
@@ -47,15 +47,13 @@ class LoadCashStateWorker(QThread):
     def __init__(
         self,
         session_factory: Callable,
-        day: date,
         parent=None,
     ) -> None:
         super().__init__(parent)
         self._session_factory = session_factory
-        self._day = day
 
     def run(self) -> None:
-        """Carga el arqueo activo, sus movimientos y los totales del día."""
+        """Carga el arqueo activo, sus movimientos y los totales de la sesión."""
         session = self._session_factory()
         try:
             from src.infrastructure.persistence.mariadb_cash_repository import (
@@ -65,7 +63,11 @@ class LoadCashStateWorker(QThread):
             repo = MariadbCashRepository(session)
             cash_close = repo.get_open()
             movements = repo.list_movements(cash_close.id) if cash_close else []
-            totals = repo.get_sales_totals_for_date(self._day)
+            totals = (
+                repo.get_sales_totals_for_session(cash_close.id)
+                if cash_close
+                else {}
+            )
 
             self.state_loaded.emit(
                 {
@@ -180,8 +182,7 @@ class AddMovementWorker(QThread):
     Args:
         session_factory: Callable que retorna una nueva sesión SQLAlchemy.
         cash_close_id: ID del arqueo activo.
-        amount: Monto del movimiento.
-        movement_type: INGRESO o EGRESO.
+        amount: Monto del movimiento (positivo = ingreso, negativo = egreso).
         description: Texto descriptivo.
     """
 
@@ -193,7 +194,6 @@ class AddMovementWorker(QThread):
         session_factory: Callable,
         cash_close_id: int,
         amount: Decimal,
-        movement_type: MovementType,
         description: str,
         parent=None,
     ) -> None:
@@ -201,7 +201,6 @@ class AddMovementWorker(QThread):
         self._session_factory = session_factory
         self._cash_close_id = cash_close_id
         self._amount = amount
-        self._movement_type = movement_type
         self._description = description
 
     def run(self) -> None:
@@ -218,7 +217,6 @@ class AddMovementWorker(QThread):
             movement = uc.execute(
                 cash_close_id=self._cash_close_id,
                 amount=self._amount,
-                movement_type=self._movement_type,
                 description=self._description,
             )
             self.movement_added.emit(movement)

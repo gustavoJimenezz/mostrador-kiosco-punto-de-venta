@@ -1,8 +1,7 @@
 """Entidad de dominio CashMovement (Movimiento de caja).
 
-Registra cada movimiento manual de efectivo dentro de una sesión de caja:
-ingresos (ej: fondo de inicio, cobros fuera del sistema) y egresos
-(ej: pago a proveedores, retiro de efectivo).
+Registra cada movimiento manual de efectivo dentro de una sesión de caja.
+Ingresos se expresan con monto positivo, egresos con monto negativo.
 
 Las ventas generan su propio rastro en ``sales``. Los movimientos manuales
 se registran aquí para el cuadre del arqueo diario.
@@ -13,20 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
-from enum import Enum
 from typing import Optional
-
-
-class MovementType(str, Enum):
-    """Tipo de movimiento de caja.
-
-    Attributes:
-        INCOME: Ingreso de efectivo (aumenta el saldo).
-        EXPENSE: Egreso de efectivo (disminuye el saldo).
-    """
-
-    INCOME = "INGRESO"
-    EXPENSE = "EGRESO"
 
 
 @dataclass
@@ -36,10 +22,13 @@ class CashMovement:
     Se usa para registrar ingresos o egresos que no provienen de una venta
     directa, como pagos a proveedores, reposición de cambio o retiros.
 
+    El signo del monto determina la dirección:
+    - Positivo: ingreso (aumenta el saldo).
+    - Negativo: egreso (disminuye el saldo).
+
     Attributes:
         cash_close_id: FK al arqueo de caja al que pertenece este movimiento.
-        amount: Monto del movimiento (siempre positivo; el tipo indica dirección).
-        movement_type: INGRESO o EGRESO.
+        amount: Monto del movimiento (positivo = ingreso, negativo = egreso).
         description: Texto libre que describe el movimiento.
         created_at: Momento exacto del registro.
         id: PK asignada por la DB (None antes de persistir).
@@ -47,20 +36,22 @@ class CashMovement:
     Examples:
         >>> from decimal import Decimal
         >>> from datetime import datetime
-        >>> m = CashMovement(
+        >>> ingreso = CashMovement(
         ...     cash_close_id=1,
         ...     amount=Decimal("5000.00"),
-        ...     movement_type=MovementType.INCOME,
         ...     description="Fondo de cambio inicial",
         ...     created_at=datetime.now(),
         ... )
-        >>> m.movement_type
-        <MovementType.INCOME: 'INGRESO'>
+        >>> egreso = CashMovement(
+        ...     cash_close_id=1,
+        ...     amount=Decimal("-2000.00"),
+        ...     description="Pago a proveedor",
+        ...     created_at=datetime.now(),
+        ... )
     """
 
     cash_close_id: int
     amount: Decimal
-    movement_type: MovementType
     description: str
     created_at: datetime
     id: Optional[int] = field(default=None, compare=False)
@@ -69,11 +60,14 @@ class CashMovement:
         """Valida invariantes del movimiento.
 
         Raises:
-            ValueError: Si el monto es negativo o la descripción está vacía.
+            ValueError: Si el monto es cero o la descripción está vacía.
         """
-        if self.amount <= Decimal("0"):
-            raise ValueError(
-                f"El monto del movimiento debe ser mayor a cero: {self.amount}"
-            )
+        if self.amount == Decimal("0"):
+            raise ValueError("El monto del movimiento no puede ser cero.")
         if not self.description.strip():
             raise ValueError("La descripción del movimiento no puede estar vacía.")
+
+    @property
+    def is_income(self) -> bool:
+        """Retorna True si el movimiento es un ingreso (monto positivo)."""
+        return self.amount > Decimal("0")

@@ -14,7 +14,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from src.domain.models.cash_close import CashClose
-from src.domain.models.cash_movement import CashMovement, MovementType
+from src.domain.models.cash_movement import CashMovement
 from src.infrastructure.persistence.tables import (
     cash_movements_table,
     sales_table,
@@ -28,8 +28,7 @@ class MariadbCashRepository:
     sola clase para compartir la sesión de DB en operaciones coordinadas.
 
     ``CashClose`` usa ORM (gracias al mapeo imperativo en ``mappings.py``).
-    ``CashMovement`` usa Core SQL para evitar la complejidad del TypeDecorator
-    necesario para mapear el enum ``MovementType``.
+    ``CashMovement`` usa Core SQL (mapeo imperativo no definido para esta entidad).
 
     Args:
         session: Sesión SQLAlchemy activa.
@@ -92,7 +91,6 @@ class MariadbCashRepository:
             cash_movements_table.insert().values(
                 cash_close_id=movement.cash_close_id,
                 amount=movement.amount,
-                movement_type=movement.movement_type.value,
                 description=movement.description,
                 created_at=movement.created_at,
             )
@@ -121,7 +119,6 @@ class MariadbCashRepository:
                 id=row.id,
                 cash_close_id=row.cash_close_id,
                 amount=row.amount,
-                movement_type=MovementType(row.movement_type),
                 description=row.description,
                 created_at=row.created_at,
             )
@@ -135,16 +132,27 @@ class MariadbCashRepository:
     def save(self, obj):  # type: ignore[override]
         """Delegación: persiste CashClose o CashMovement según el tipo.
 
-        Este método satisface el ``CashCloseRepository`` Protocol.
-        Para movimientos usar ``save_movement`` directamente.
+        Satisface tanto ``CashCloseRepository`` como ``CashMovementRepository``.
+
+        Args:
+            obj: Instancia de CashClose o CashMovement a persistir.
+
+        Returns:
+            La misma instancia con ``id`` asignado.
+
+        Raises:
+            TypeError: Si el tipo no es CashClose ni CashMovement.
         """
         if isinstance(obj, CashClose):
             return self._save_cash_close(obj)
+        if isinstance(obj, CashMovement):
+            return self.save_movement(obj)
         raise TypeError(f"Tipo no soportado por save(): {type(obj)}")
 
     def _save_cash_close(self, cash_close: CashClose) -> CashClose:
         self._session.add(cash_close)
         self._session.commit()
+        self._session.refresh(cash_close)
         return cash_close
 
     def list_by_cash_close(self, cash_close_id: int) -> list[CashMovement]:
@@ -173,6 +181,34 @@ class MariadbCashRepository:
     # ------------------------------------------------------------------
     # Reporting: totales de ventas del día (sin pre-acumulación)
     # ------------------------------------------------------------------
+
+    def get_sales_totals_for_session(self, cash_close_id: int) -> dict[str, Decimal]:
+        """Computa los totales de ventas agrupados por método de pago para un arqueo.
+
+        Filtra la tabla ``sales`` por ``cash_close_id`` para obtener únicamente
+        las ventas vinculadas a la sesión activa, no al día completo.
+
+        Args:
+            cash_close_id: ID del arqueo de caja a consultar.
+
+        Returns:
+            Diccionario ``{payment_method_value: total_amount}``. Solo incluye
+            métodos con al menos una venta. Ejemplo::
+
+                {"EFECTIVO": Decimal("12500.00"), "DEBITO": Decimal("3200.00")}
+        """
+        from sqlalchemy import func, select
+
+        rows = self._session.execute(
+            select(
+                sales_table.c.payment_method,
+                func.sum(sales_table.c.total_amount).label("total"),
+            )
+            .where(sales_table.c.cash_close_id == cash_close_id)
+            .group_by(sales_table.c.payment_method)
+        ).fetchall()
+
+        return {row.payment_method: Decimal(str(row.total)) for row in rows}
 
     def get_sales_totals_for_date(self, day: date) -> dict[str, Decimal]:
         """Computa los totales de ventas del día agrupados por método de pago.

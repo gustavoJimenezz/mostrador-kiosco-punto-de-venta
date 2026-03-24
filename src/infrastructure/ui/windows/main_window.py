@@ -22,6 +22,7 @@ Atajos de teclado (keyboard-first):
 
 from __future__ import annotations
 
+import importlib  # [DEV_ONLY] hot-reload de vistas en desarrollo
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -70,9 +71,11 @@ class MainWindow(QMainWindow):
         super().__init__(parent)
         self._session_factory = session_factory
         self._presenter = None
+        self._cash_presenter = None
         self._active_workers: list = []
         self._elevate_use_case = None
         self._admin_btn = None  # se asigna en _load_ui
+        self._pending_quantity: int = 1
 
         self._load_ui()
         self._setup_shortcuts()
@@ -127,6 +130,7 @@ class MainWindow(QMainWindow):
         Args:
             presenter: ImportPresenter ya configurado con la ImportView.
         """
+        self._import_presenter = presenter  # [DEV_ONLY] referencia para hot-reload
         self._import_view.set_presenter(presenter)
 
     def set_product_presenter(self, presenter) -> None:
@@ -135,6 +139,7 @@ class MainWindow(QMainWindow):
         Args:
             presenter: ProductPresenter ya configurado con la vista.
         """
+        self._product_presenter = presenter  # [DEV_ONLY] referencia para hot-reload
         self._product_management_view.set_presenter(presenter)
 
     def set_stock_edit_presenter(self, presenter) -> None:
@@ -143,6 +148,7 @@ class MainWindow(QMainWindow):
         Args:
             presenter: StockEditPresenter ya configurado con la vista.
         """
+        self._stock_edit_presenter = presenter  # [DEV_ONLY] referencia para hot-reload
         self._stock_edit_view.set_presenter(presenter)
 
     def set_stock_inject_presenter(self, presenter) -> None:
@@ -151,6 +157,7 @@ class MainWindow(QMainWindow):
         Args:
             presenter: StockInjectPresenter ya configurado con la vista.
         """
+        self._stock_inject_presenter = presenter  # [DEV_ONLY] referencia para hot-reload
         self._stock_inject_view.set_presenter(presenter)
 
     def set_cash_presenter(self, presenter) -> None:
@@ -159,6 +166,7 @@ class MainWindow(QMainWindow):
         Args:
             presenter: CashPresenter ya configurado con la vista.
         """
+        self._cash_presenter = presenter
         self._cash_close_view.set_presenter(presenter)
 
     def set_sales_history_presenter(self, presenter) -> None:
@@ -167,6 +175,7 @@ class MainWindow(QMainWindow):
         Args:
             presenter: SalesHistoryPresenter ya configurado con la vista.
         """
+        self._sales_history_presenter = presenter  # [DEV_ONLY] referencia para hot-reload
         self._sales_history_view.set_presenter(presenter)
 
     def set_cash_history_presenter(self, presenter) -> None:
@@ -175,6 +184,7 @@ class MainWindow(QMainWindow):
         Args:
             presenter: CashHistoryPresenter ya configurado con la vista.
         """
+        self._cash_history_presenter = presenter  # [DEV_ONLY] referencia para hot-reload
         self._cash_history_view.set_presenter(presenter)
 
     @property
@@ -348,6 +358,7 @@ class MainWindow(QMainWindow):
         self._tab_widget.setCornerWidget(_corner)
 
         tab_import = ui_widget.findChild(QWidget, "tab_import")
+        self._tab_import = tab_import  # [DEV_ONLY] referencia para hot-reload de ImportView
         self._import_view = ImportView()
         tab_layout = QVBoxLayout(tab_import)
         tab_layout.setContentsMargins(0, 0, 0, 0)
@@ -460,11 +471,9 @@ class MainWindow(QMainWindow):
 
     def _load_initial_cash_state(self) -> None:
         """Consulta la DB en un worker para conocer si hay caja abierta al arrancar."""
-        from datetime import date as _date
-
         from src.infrastructure.ui.workers.cash_worker import LoadCashStateWorker
 
-        worker = LoadCashStateWorker(self._session_factory, _date.today())
+        worker = LoadCashStateWorker(self._session_factory)
         worker.state_loaded.connect(
             lambda state: self._on_cash_session_changed(state.get("cash_close") is not None)
         )
@@ -483,25 +492,14 @@ class MainWindow(QMainWindow):
 
     def _on_open_cash_clicked(self) -> None:
         """Botón 'Abrir caja': solicita el monto inicial y lanza el worker de apertura."""
-        from decimal import Decimal
-
-        from PySide6.QtWidgets import QInputDialog
-
+        from src.infrastructure.ui.windows.open_cash_dialog import OpenCashDialog
         from src.infrastructure.ui.workers.cash_worker import OpenCashCloseWorker
 
-        amount, ok = QInputDialog.getDouble(
-            self,
-            "Abrir caja",
-            "Monto inicial ($):",
-            value=0.0,
-            min=0.0,
-            max=999999.99,
-            decimals=2,
-        )
-        if not ok:
+        dialog = OpenCashDialog(self)
+        if dialog.exec() != OpenCashDialog.DialogCode.Accepted:
             return
 
-        worker = OpenCashCloseWorker(self._session_factory, Decimal(str(amount)))
+        worker = OpenCashCloseWorker(self._session_factory, dialog.opening_amount())
         worker.opened.connect(lambda _cc: self._on_cash_session_changed(True))
         worker.opened.connect(
             lambda _cc: self.statusBar().showMessage("✓ Caja abierta correctamente.", 4000)
@@ -558,6 +556,8 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("F10"), self).activated.connect(self._on_cash_close)
         QShortcut(QKeySequence("F12"), self).activated.connect(self._on_cash_payment)
         QShortcut(QKeySequence("Escape"), self).activated.connect(self._on_escape)
+        # [DEV_ONLY] Ctrl+R — recarga en caliente la vista de la pestaña activa
+        QShortcut(QKeySequence("Ctrl+R"), self).activated.connect(self._dev_reload_view)
 
     # ------------------------------------------------------------------
     # Handlers de eventos Qt (delegan toda lógica al presenter)
@@ -582,8 +582,12 @@ class MainWindow(QMainWindow):
     def _on_barcode_entered(self) -> None:
         """Enter en barcode_input: auto-detecta tipo y lanza el worker correspondiente.
 
-        Si el texto es puramente numérico lanza ``SearchByBarcodeWorker``;
-        en caso contrario lanza ``SearchByNameWorker`` para búsqueda por nombre.
+        Soporta el prefijo ``N*`` para agregar múltiples unidades de un mismo
+        producto en una sola operación (ej: ``3*7790001234567`` o ``3*coca``.
+
+        Si el texto (sin prefijo) es puramente numérico lanza
+        ``SearchByBarcodeWorker``; en caso contrario lanza ``SearchByNameWorker``
+        para búsqueda por nombre.
         """
         text = self._barcode_input.text().strip()
         if not text or not self._presenter:
@@ -591,16 +595,29 @@ class MainWindow(QMainWindow):
 
         self._search_results.setVisible(False)
 
+        # Detectar prefijo de cantidad: "N*resto" (ej: "3*7790001234567")
+        quantity = 1
+        if "*" in text:
+            prefix, _, rest = text.partition("*")
+            if prefix.isdigit() and rest:
+                quantity = max(1, int(prefix))
+                text = rest.strip()
+
+        self._barcode_input.clear()
+
         if text.isdigit():
-            self._barcode_input.clear()
+            qty = quantity
             worker = SearchByBarcodeWorker(self._session_factory, text)
-            worker.product_found.connect(self._presenter.on_barcode_found)
+            worker.product_found.connect(
+                lambda p, q=qty: self._presenter.on_barcode_found(p, q)
+            )
             worker.not_found.connect(self._presenter.on_barcode_not_found)
             worker.error_occurred.connect(self._presenter.on_search_error)
             worker.finished.connect(lambda: self._cleanup_worker(worker))
             self._active_workers.append(worker)
             worker.start()
         else:
+            self._pending_quantity = quantity
             worker = SearchByNameWorker(self._session_factory, text)
             worker.results_ready.connect(self._presenter.on_search_results_ready)
             worker.error_occurred.connect(self._presenter.on_search_error)
@@ -612,7 +629,9 @@ class MainWindow(QMainWindow):
         """Enter/doble clic en search_results: agrega producto al carrito."""
         product = item.data(Qt.UserRole)
         if product and self._presenter:
-            self._presenter.on_product_selected_from_list(product)
+            quantity = self._pending_quantity
+            self._pending_quantity = 1
+            self._presenter.on_product_selected_from_list(product, quantity)
         self._search_results.setVisible(False)
         self._barcode_input.clear()
         self._barcode_input.setFocus()
@@ -633,7 +652,14 @@ class MainWindow(QMainWindow):
             return
 
         cart = self._presenter.get_cart()
-        worker = ProcessSaleWorker(self._session_factory, cart, payment_method)
+        cash_close_id = (
+            self._cash_presenter.get_active_cash_close_id()
+            if self._cash_presenter
+            else None
+        )
+        worker = ProcessSaleWorker(
+            self._session_factory, cart, payment_method, cash_close_id
+        )
         worker.sale_completed.connect(self._presenter.on_sale_completed)
         worker.error_occurred.connect(self._presenter.on_sale_error)
         worker.finished.connect(lambda: self._cleanup_worker(worker))
@@ -706,7 +732,14 @@ class MainWindow(QMainWindow):
             return
 
         cart = self._presenter.get_cart()
-        worker = ProcessSaleWorker(self._session_factory, cart, payment_method)
+        cash_close_id = (
+            self._cash_presenter.get_active_cash_close_id()
+            if self._cash_presenter
+            else None
+        )
+        worker = ProcessSaleWorker(
+            self._session_factory, cart, payment_method, cash_close_id
+        )
         worker.sale_completed.connect(self._presenter.on_sale_completed)
         worker.error_occurred.connect(self._presenter.on_sale_error)
         worker.finished.connect(lambda: self._cleanup_worker(worker))
@@ -806,6 +839,122 @@ class MainWindow(QMainWindow):
         de barras pierda caracteres al retornar el foco a la ventana.
         """
         self._barcode_input.setFocus()
+
+    # ------------------------------------------------------------------
+    # [DEV_ONLY] Hot-reload de vistas — ELIMINAR ANTES DE PRODUCCIÓN
+    # Buscar "[DEV_ONLY]" en este archivo para ubicar todos los puntos
+    # relacionados. Ver README.md sección "Herramientas de desarrollo".
+    # ------------------------------------------------------------------
+
+    #: Mapa de índice de pestaña → configuración de recarga.
+    _DEV_RELOAD_MAP: dict = {
+        1: {
+            "module": "src.infrastructure.ui.views.import_view",
+            "class": "ImportView",
+            "use_session": False,
+            "presenter_attr": "_import_presenter",
+            "view_attr": "_import_view",
+            "tab_label": None,  # vista anidada dentro de _tab_import, no tab directo
+        },
+        2: {
+            "module": "src.infrastructure.ui.views.product_management_view",
+            "class": "ProductManagementView",
+            "use_session": True,
+            "presenter_attr": "_product_presenter",
+            "view_attr": "_product_management_view",
+            "tab_label": "Productos (F5)",
+        },
+        3: {
+            "module": "src.infrastructure.ui.views.stock_edit_view",
+            "class": "StockEditView",
+            "use_session": True,
+            "presenter_attr": "_stock_edit_presenter",
+            "view_attr": "_stock_edit_view",
+            "tab_label": "Editar Stock (F6)",
+        },
+        4: {
+            "module": "src.infrastructure.ui.views.stock_inject_view",
+            "class": "StockInjectView",
+            "use_session": True,
+            "presenter_attr": "_stock_inject_presenter",
+            "view_attr": "_stock_inject_view",
+            "tab_label": "Inyectar Stock (F7)",
+        },
+        5: {
+            "module": "src.infrastructure.ui.views.sales_history_view",
+            "class": "SalesHistoryView",
+            "use_session": True,
+            "presenter_attr": "_sales_history_presenter",
+            "view_attr": "_sales_history_view",
+            "tab_label": "Historial (F2)",
+        },
+        6: {
+            "module": "src.infrastructure.ui.views.cash_history_view",
+            "class": "CashHistoryView",
+            "use_session": True,
+            "presenter_attr": "_cash_history_presenter",
+            "view_attr": "_cash_history_view",
+            "tab_label": "Historial de caja",
+        },
+    }
+
+    def _dev_reload_view(self) -> None:  # [DEV_ONLY]
+        """Recarga en caliente la vista de la pestaña activa (Ctrl+R).
+
+        Recarga el módulo Python con ``importlib.reload``, instancia la nueva
+        clase, reemplaza el widget en el QTabWidget y re-inyecta el presenter
+        existente apuntando a la nueva vista.
+
+        Limitación: no recarga dependencias transitivas del módulo.
+        Solo afecta la clase de la vista directa. Para cambios en widgets
+        internos importados por la vista, reiniciar la aplicación.
+        """
+        idx = self._tab_widget.currentIndex()
+        config = self._DEV_RELOAD_MAP.get(idx)
+
+        if config is None:
+            self.statusBar().showMessage(
+                "⚠ Recarga no disponible para esta pestaña (tab 0 = vista de venta).", 3000
+            )
+            return
+
+        module = importlib.import_module(config["module"])
+        importlib.reload(module)
+        cls = getattr(module, config["class"])
+
+        kwargs: dict = {}
+        if config["use_session"]:
+            kwargs["session_factory"] = self._session_factory
+
+        new_view = cls(**kwargs)
+
+        if config["tab_label"] is None:
+            # ImportView: está anidada dentro de _tab_import, no es un tab directo
+            layout = self._tab_import.layout()
+            old_view = getattr(self, config["view_attr"])
+            layout.removeWidget(old_view)
+            old_view.deleteLater()
+            layout.addWidget(new_view)
+        else:
+            tab_label = self._tab_widget.tabText(idx)
+            self._tab_widget.removeTab(idx)
+            self._tab_widget.insertTab(idx, new_view, tab_label)
+            self._tab_widget.setCurrentIndex(idx)
+
+        setattr(self, config["view_attr"], new_view)
+
+        presenter = getattr(self, config["presenter_attr"], None)
+        if presenter is not None:
+            presenter._view = new_view
+            new_view.set_presenter(presenter)
+
+        self.statusBar().showMessage(
+            f"✓ [DEV] Vista '{config['class']}' recargada — Ctrl+R", 4000
+        )
+
+    # ------------------------------------------------------------------
+    # Fin bloque [DEV_ONLY]
+    # ------------------------------------------------------------------
 
     def _cleanup_worker(self, worker) -> None:
         """Elimina un worker completado de la lista de activos."""

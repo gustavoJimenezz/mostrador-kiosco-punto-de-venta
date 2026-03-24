@@ -16,7 +16,7 @@ from decimal import Decimal
 from typing import Optional, Protocol, runtime_checkable
 
 from src.domain.models.cash_close import CashClose
-from src.domain.models.cash_movement import CashMovement, MovementType
+from src.domain.models.cash_movement import CashMovement
 
 
 @runtime_checkable
@@ -138,9 +138,9 @@ class CashPresenter:
         """
         self._movements.append(movement)
         self._view.show_movements(self._movements)
-        tipo = "Ingreso" if movement.movement_type == MovementType.INCOME else "Egreso"
+        tipo = "Ingreso" if movement.is_income else "Egreso"
         self._view.show_success(
-            f"{tipo} registrado: ${movement.amount:,.2f} — {movement.description}"
+            f"{tipo} registrado: ${abs(movement.amount):,.2f} — {movement.description}"
         )
 
     def on_worker_error(self, message: str) -> None:
@@ -203,8 +203,8 @@ class CashPresenter:
         if self._active_close is None:
             self._view.show_error("No hay ninguna sesión de caja abierta.")
             return False
-        if amount <= Decimal("0"):
-            self._view.show_error("El monto del movimiento debe ser mayor a cero.")
+        if amount == Decimal("0"):
+            self._view.show_error("El monto del movimiento no puede ser cero.")
             return False
         if not description.strip():
             self._view.show_error("La descripción del movimiento es obligatoria.")
