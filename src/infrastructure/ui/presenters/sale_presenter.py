@@ -17,6 +17,7 @@ from typing import Optional, Protocol, runtime_checkable
 from src.domain.models.price import Price
 from src.domain.models.product import Product
 from src.domain.models.sale import PaymentMethod, Sale
+from src.domain.ports.draft_cart_repository import DraftCartRepository
 
 
 @runtime_checkable
@@ -64,19 +65,22 @@ class ISaleView(Protocol):
         """
         ...
 
+    def show_stock_error(self, message: str) -> None:
+        """Muestra un diálogo de error de stock (bloqueante) al usuario.
+
+        Se usa cuando no se puede agregar un producto al carrito por falta
+        de stock, para que el cajero entienda claramente por qué no se agregó.
+
+        Args:
+            message: Texto del error a mostrar en el diálogo.
+        """
+        ...
+
     def show_sale_confirmed(self, sale: Sale) -> None:
         """Muestra confirmación de venta exitosa y limpia la UI.
 
         Args:
             sale: Venta confirmada con su ID y total.
-        """
-        ...
-
-    def show_payment_dialog(self) -> Optional[PaymentMethod]:
-        """Muestra el diálogo modal de selección de método de pago.
-
-        Returns:
-            PaymentMethod seleccionado, o None si el usuario canceló.
         """
         ...
 
@@ -108,21 +112,29 @@ class SalePresenter:
 
     Flujo de confirmar venta:
         F4 → MainWindow llama presenter.on_confirm_sale_requested() →
-        presenter llama view.show_payment_dialog() → retorna PaymentMethod →
-        MainWindow crea ProcessSaleWorker → worker emite sale_completed →
+        presenter llama view.show_change_dialog(total) → retorna bool →
+        si confirmado, retorna PaymentMethod.CASH → MainWindow crea
+        ProcessSaleWorker → worker emite sale_completed →
         MainWindow llama presenter.on_sale_completed(sale).
 
     Args:
         view: Objeto que implementa ISaleView.
     """
 
-    def __init__(self, view: ISaleView) -> None:
+    def __init__(
+        self,
+        view: ISaleView,
+        draft_repo: Optional[DraftCartRepository] = None,
+    ) -> None:
         """Inicializa el presenter con la vista inyectada.
 
         Args:
             view: Implementación de ISaleView (MainWindow o FakeView en tests).
+            draft_repo: Repositorio opcional para persistir el carrito en curso.
+                        Si es None, el carrito no se persiste (tests unitarios).
         """
         self._view = view
+        self._draft_repo = draft_repo
         self._cart: dict[int, tuple[Product, int]] = {}
 
     # ------------------------------------------------------------------
@@ -215,7 +227,8 @@ class SalePresenter:
             self._view.show_error("Carrito vacío. Escanee un producto primero.")
             return None
 
-        return self._view.show_payment_dialog()
+        confirmed = self._view.show_change_dialog(self.get_total())
+        return PaymentMethod.CASH if confirmed else None
 
     def on_cash_payment_requested(self) -> Optional[PaymentMethod]:
         """Maneja F12: valida carrito y muestra ChangeDialog (efectivo implícito).
@@ -245,10 +258,22 @@ class SalePresenter:
         """
         self._view.show_error("Cierre de caja: funcionalidad disponible próximamente.")
 
+    def on_remove_selected_item(self, product_id: int) -> None:
+        """Elimina un producto del carrito y refresca la UI.
+
+        Args:
+            product_id: ID del producto a eliminar del carrito.
+        """
+        if product_id in self._cart:
+            del self._cart[product_id]
+            self._refresh_cart_display()
+            self._save_draft()
+
     def on_quantity_changed(self, product_id: int, new_quantity: int) -> None:
         """Actualiza la cantidad de un producto en el carrito.
 
         Si new_quantity <= 0, elimina el producto del carrito.
+        Si new_quantity supera el stock disponible, muestra error y no actualiza.
 
         Args:
             product_id: ID del producto a actualizar.
@@ -261,10 +286,17 @@ class SalePresenter:
 
         if new_quantity <= 0:
             del self._cart[product_id]
+        elif new_quantity > product.stock:
+            self._view.show_stock_error(
+                f"Sin stock suficiente para '{product.name}'.\n"
+                f"Disponible: {product.stock}."
+            )
+            return
         else:
             self._cart[product_id] = (product, new_quantity)
 
         self._refresh_cart_display()
+        self._save_draft()
 
     # ------------------------------------------------------------------
     # Consultas de estado (solo lectura, para MainWindow)
@@ -307,6 +339,9 @@ class SalePresenter:
     def _add_product_to_cart(self, product: Product) -> None:
         """Agrega o incrementa un producto en el carrito y actualiza la UI.
 
+        Bloquea la operación si no hay stock disponible para la cantidad
+        solicitada y muestra un mensaje de error al cajero.
+
         Args:
             product: Producto a agregar (requiere id asignado — no None).
         """
@@ -318,17 +353,50 @@ class SalePresenter:
 
         if product.id in self._cart:
             current_product, current_qty = self._cart[product.id]
-            self._cart[product.id] = (current_product, current_qty + 1)
+            new_qty = current_qty + 1
+            if new_qty > product.stock:
+                self._view.show_stock_error(
+                    f"Sin stock suficiente para '{product.name}'.\n"
+                    f"Disponible: {product.stock}, en carrito: {current_qty}."
+                )
+                return
+            self._cart[product.id] = (current_product, new_qty)
         else:
+            if product.stock == 0:
+                self._view.show_stock_error(
+                    f"'{product.name}' no tiene stock disponible."
+                )
+                return
             self._cart[product.id] = (product, 1)
 
         _, quantity = self._cart[product.id]
         self._view.show_product_in_cart(product, quantity)
         self._view.update_total(self.get_total())
+        self._save_draft()
+
+    def restore_from_draft(self, items: list[tuple[Product, int]]) -> None:
+        """Restaura el carrito desde un borrador guardado en disco.
+
+        Llamado desde main.py al inicio si existe un draft previo. Puebla
+        el carrito directamente (sin validar stock, ya validado por el
+        caso de uso RestoreDraftCart) y refresca la visualización.
+
+        Args:
+            items: Lista de ``(Product, quantity)`` validados y con stock
+                   disponible, proporcionada por ``RestoreDraftCart.execute()``.
+        """
+        for product, quantity in items:
+            if product.id is not None:
+                self._cart[product.id] = (product, quantity)
+        if self._cart:
+            self._refresh_cart_display()
+            self._save_draft()
 
     def _clear_cart(self) -> None:
-        """Limpia el carrito y resetea la UI a estado inicial."""
+        """Limpia el carrito, resetea la UI a estado inicial y borra el borrador."""
         self._cart.clear()
+        if self._draft_repo is not None:
+            self._draft_repo.clear()
         self._view.clear_cart_display()
         self._view.update_total(Price("0"))
 
@@ -338,3 +406,14 @@ class SalePresenter:
         for product, quantity in self._cart.values():
             self._view.show_product_in_cart(product, quantity)
         self._view.update_total(self.get_total())
+
+    def _save_draft(self) -> None:
+        """Persiste el estado actual del carrito en el repositorio de borrador.
+
+        No hace nada si no se inyectó un repositorio de borrador (tests o
+        instancias sin persistencia).
+        """
+        if self._draft_repo is not None:
+            self._draft_repo.save(
+                {pid: qty for pid, (_, qty) in self._cart.items()}
+            )

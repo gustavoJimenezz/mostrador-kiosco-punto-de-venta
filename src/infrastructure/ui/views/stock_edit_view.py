@@ -105,7 +105,7 @@ class StockEditView(QWidget):
             product: Producto seleccionado para editar stock.
         """
         self._lbl_product_name.setText(f"<b>{product.name}</b>  ({product.barcode})")
-        self._lbl_current_stock.setText(f"Stock: {product.stock}")
+        self._lbl_current_stock.setText(f"Stock : {product.stock}")
         self._radio_add.setChecked(True)
         self._spin_qty.setValue(1)
         self._form_group.setVisible(True)

@@ -20,7 +20,7 @@ QWidget {
 }
 
 /* LABELS INDICATIVOS */
-QLabel#barcode_label, QLabel#search_label {
+QLabel#barcode_label {
     color: #6b7280;
     font-size: 13px;
     font-weight: 600;
@@ -39,19 +39,6 @@ QLineEdit#barcode_input {
 QLineEdit#barcode_input:focus {
     border: 2px solid #4f46e5;
     padding: 11px 15px;
-}
-
-/* SEARCH INPUT */
-QLineEdit#search_input {
-    background-color: #ffffff;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 10px 14px;
-    font-size: 14px;
-}
-QLineEdit#search_input:focus {
-    border: 2px solid #10b981;
-    padding: 9px 13px;
 }
 
 /* SEARCH RESULTS */
@@ -105,15 +92,14 @@ QLabel#total_label {
     background-color: #4f46e5;
     color: #ffffff;
     border-radius: 16px;
-    padding: 32px 24px;
-    font-size: 52px;
+    padding: 24px 16px;
+    font-size: 40px;
     font-weight: 900;
-    min-height: 140px;
+    min-height: 100px;
 }
 
-/* BOTONES F1, F2, F10 */
+/* BOTONES F1, F10 */
 QPushButton#btn_new_sale,
-QPushButton#btn_search,
 QPushButton#btn_cash_close {
     background-color: #ffffff;
     color: #374151;
@@ -124,8 +110,7 @@ QPushButton#btn_cash_close {
     font-weight: 600;
     min-height: 72px;
 }
-QPushButton#btn_new_sale:hover,
-QPushButton#btn_search:hover {
+QPushButton#btn_new_sale:hover {
     background-color: #eef2ff;
     border-color: #4f46e5;
     color: #4f46e5;
@@ -149,6 +134,31 @@ QPushButton#btn_confirm {
 }
 QPushButton#btn_confirm:hover { background-color: #059669; }
 QPushButton#btn_confirm:pressed { background-color: #047857; }
+
+/* BOTÓN BORRAR ÍTEM */
+QPushButton#btn_delete_item {
+    background-color: #ffffff;
+    color: #dc2626;
+    border: 1px solid #fca5a5;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 600;
+}
+QPushButton#btn_delete_item:hover {
+    background-color: #fff5f5;
+    border-color: #dc2626;
+}
+QPushButton#btn_delete_item:disabled {
+    color: #d1d5db;
+    border-color: #e5e7eb;
+}
+
+/* HINT ATAJOS CARRITO */
+QLabel#hint_delete_label {
+    color: #374151;
+    font-size: 11px;
+}
 
 /* SCROLLBARS */
 QScrollBar:vertical {
@@ -237,32 +247,10 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
             <item>
              <widget class="QLineEdit" name="barcode_input">
               <property name="placeholderText">
-               <string>Escanear o escribir código de barras y presionar Enter...</string>
+               <string>Escanear código o escribir nombre del producto y presionar Enter...</string>
               </property>
               <property name="clearButtonEnabled">
                <bool>true</bool>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item>
-           <!-- Sección de búsqueda por nombre (F2) -->
-           <layout class="QHBoxLayout" name="search_row">
-            <item>
-             <widget class="QLabel" name="search_label">
-              <property name="text">
-               <string>Buscar (F2):</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QLineEdit" name="search_input">
-              <property name="placeholderText">
-               <string>Nombre del producto...</string>
-              </property>
-              <property name="visible">
-               <bool>false</bool>
               </property>
              </widget>
             </item>
@@ -316,6 +304,38 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
             </column>
            </widget>
           </item>
+          <item>
+           <!-- Fila inferior: hint de atajos + botón borrar -->
+           <layout class="QHBoxLayout" name="cart_actions_row">
+            <item>
+             <widget class="QLabel" name="hint_delete_label">
+              <property name="text">
+               <string>F1 borra todo el carrito · Supr borra el ítem seleccionado</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="cart_actions_spacer">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btn_delete_item">
+              <property name="text">
+               <string>Borrar ítem</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
          </layout>
         </widget>
        </item>
@@ -345,7 +365,7 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
            <number>0</number>
           </property>
           <item>
-           <!-- Label del total — elemento visualmente dominante -->
+           <!-- Total en la parte superior tocando el borde -->
            <widget class="QLabel" name="total_label">
             <property name="text">
              <string>TOTAL: $0,00</string>
@@ -353,10 +373,27 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
             <property name="alignment">
              <set>Qt::AlignCenter</set>
             </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
            </widget>
           </item>
           <item>
-           <!-- Contenedor de botones de acción en grilla 2x2 -->
+           <!-- Spacer flexible que empuja los botones al fondo -->
+           <spacer name="right_middle_spacer">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>40</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <!-- Bloque inferior anclado al piso: cobrar + nueva/cierre -->
            <widget class="QWidget" name="action_buttons_container">
             <layout class="QGridLayout" name="buttons_grid">
              <property name="spacing">
@@ -374,62 +411,31 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
              <property name="bottomMargin">
               <number>0</number>
              </property>
-             <item row="0" column="0">
-              <widget class="QPushButton" name="btn_new_sale">
-               <property name="text">
-                <string>F1 - Nueva Venta</string>
-               </property>
-               <property name="shortcut">
-                <string>F1</string>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="1">
-              <widget class="QPushButton" name="btn_search">
-               <property name="text">
-                <string>F2 - Buscar</string>
-               </property>
-               <property name="shortcut">
-                <string>F2</string>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="0">
-              <widget class="QPushButton" name="btn_cash_close">
-               <property name="text">
-                <string>F10 - Cierre Caja</string>
-               </property>
-               <property name="shortcut">
-                <string>F10</string>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="1">
+             <!-- Fila 0: cobrar ocupa las 2 columnas -->
+             <item row="0" column="0" colspan="2">
               <widget class="QPushButton" name="btn_confirm">
                <property name="text">
                 <string>F4 - Cobrar</string>
                </property>
-               <property name="shortcut">
-                <string>F4</string>
+              </widget>
+             </item>
+             <!-- Fila 1: nueva venta | cierre de caja -->
+             <item row="1" column="0">
+              <widget class="QPushButton" name="btn_new_sale">
+               <property name="text">
+                <string>F1 - Nueva Venta</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="QPushButton" name="btn_cash_close">
+               <property name="text">
+                <string>F10 - Cierre Caja</string>
                </property>
               </widget>
              </item>
             </layout>
            </widget>
-          </item>
-          <item>
-           <!-- Spacer para empujar los botones hacia arriba -->
-           <spacer name="right_bottom_spacer">
-            <property name="orientation">
-             <enum>Qt::Vertical</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>20</width>
-              <height>40</height>
-             </size>
-            </property>
-           </spacer>
           </item>
          </layout>
         </widget>

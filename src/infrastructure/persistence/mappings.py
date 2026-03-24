@@ -19,7 +19,8 @@ from sqlalchemy.orm import registry
 
 from src.domain.models.cash_close import CashClose
 from src.domain.models.product import Product
-from .tables import cash_closes_table, products_table
+from src.domain.models.user import User
+from .tables import cash_closes_table, products_table, users_table
 
 mapper_registry = registry()
 
@@ -58,6 +59,12 @@ def configure_mappings() -> None:
     mapper_registry.map_imperatively(
         CashClose,
         cash_closes_table,
+    )
+
+    # User: mapeo directo. El atributo 'role' se almacena como string enum en DB.
+    mapper_registry.map_imperatively(
+        User,
+        users_table,
     )
 
     _mappings_configured = True

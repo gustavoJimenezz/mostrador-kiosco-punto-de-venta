@@ -86,10 +86,14 @@ class Sale:
 
     Attributes:
         payment_method: Método de pago utilizado.
-        items: Lista de ítems vendidos (al menos uno requerido).
+        items: Lista de ítems vendidos (al menos uno requerido al crear).
         timestamp: Momento de la venta (por defecto: ahora).
         cash_close_id: FK al arqueo de caja del día (None hasta el cierre).
         id: UUID de la venta (generado automáticamente).
+        total_snapshot: Total pre-calculado almacenado en DB. Cuando se
+            provee (carga desde historial sin ítems), se usa en lugar de
+            recalcular desde ``items``. No afecta la validación de negocio
+            al crear una venta nueva.
 
     Examples:
         >>> item = SaleItem(product_id=1, quantity=2, price_at_sale=Decimal("337.50"))
@@ -103,23 +107,32 @@ class Sale:
     timestamp: datetime = field(default_factory=datetime.now)
     cash_close_id: Optional[int] = None
     id: UUID = field(default_factory=uuid4, compare=False)
+    total_snapshot: Optional[Decimal] = field(default=None, compare=False)
 
     def __post_init__(self) -> None:
-        """Valida que la venta tenga al menos un ítem.
+        """Valida que la venta tenga al menos un ítem al crear una venta nueva.
+
+        La validación se omite cuando se provee ``total_snapshot``, que indica
+        una carga desde la base de datos (ítems cargados de forma lazy).
 
         Raises:
-            ValueError: Si la lista de ítems está vacía.
+            ValueError: Si la lista de ítems está vacía y no hay snapshot.
         """
-        if not self.items:
+        if self.total_snapshot is None and not self.items:
             raise ValueError("Una venta debe contener al menos un ítem.")
 
     @property
     def total_amount(self) -> Price:
-        """Calcula el total de la venta sumando todos los subtotales.
+        """Retorna el total de la venta.
+
+        Si ``total_snapshot`` está disponible (carga desde historial), lo usa
+        directamente. De lo contrario, calcula sumando los subtotales de ítems.
 
         Returns:
             Price con el monto total de la venta.
         """
+        if self.total_snapshot is not None:
+            return Price(self.total_snapshot)
         total = Price("0")
         for item in self.items:
             total = total + item.subtotal

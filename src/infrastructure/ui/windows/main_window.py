@@ -6,16 +6,17 @@ y gestiona los workers QThread para operaciones de DB.
 
 Atajos de teclado (keyboard-first):
     F1  - Nueva venta (limpia carrito)
-    F2  - Activar/desactivar búsqueda por nombre
+    F2  - Historial de ventas (listado por fecha con detalle de ítems)
     F4  - Confirmar venta / Cobrar
     F5  - Gestión de productos
     F6  - Editar stock
     F7  - Inyectar stock directamente
     F9  - Importar lista de precios CSV/Excel (importación masiva)
-    F10 - Cierre de caja
+    F10 - Cierre de caja (abre modal)
     F12 - Cobrar en efectivo con diálogo de vuelto
-    Esc - Cancelar búsqueda, volver al barcode_input
-    Enter (en barcode_input)  - Buscar producto por código
+    Supr - Eliminar producto seleccionado del carrito
+    Esc - Ocultar resultados, volver al barcode_input
+    Enter (en barcode_input)  - Si es dígito: busca por código; si no: busca por nombre
     Enter (en search_results) - Agregar producto seleccionado al carrito
 """
 
@@ -24,17 +25,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable, Optional
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, Qt
 from PySide6.QtGui import QCloseEvent, QKeySequence, QShortcut
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtWidgets import (
     QDialog,
-    QDialogButtonBox,
     QLabel,
     QListWidgetItem,
     QMainWindow,
     QMessageBox,
-    QRadioButton,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -42,8 +41,9 @@ from PySide6.QtWidgets import (
 
 from src.domain.models.price import Price
 from src.domain.models.product import Product
-from src.domain.models.sale import PaymentMethod, Sale
+from src.domain.models.sale import Sale
 from src.infrastructure.ui.dialogs.change_dialog import ChangeDialog
+from src.infrastructure.ui.dialogs.sale_receipt_dialog import SaleReceiptDialog
 from src.infrastructure.ui.widgets.total_widget import TotalWidget
 from src.infrastructure.ui.workers.db_worker import (
     ProcessSaleWorker,
@@ -71,6 +71,8 @@ class MainWindow(QMainWindow):
         self._session_factory = session_factory
         self._presenter = None
         self._active_workers: list = []
+        self._elevate_use_case = None
+        self._admin_btn = None  # se asigna en _load_ui
 
         self._load_ui()
         self._setup_shortcuts()
@@ -151,6 +153,45 @@ class MainWindow(QMainWindow):
         """
         self._stock_inject_view.set_presenter(presenter)
 
+    def set_cash_presenter(self, presenter) -> None:
+        """Inyecta el CashPresenter en la CashCloseView.
+
+        Args:
+            presenter: CashPresenter ya configurado con la vista.
+        """
+        self._cash_close_view.set_presenter(presenter)
+
+    def set_sales_history_presenter(self, presenter) -> None:
+        """Inyecta el SalesHistoryPresenter en la SalesHistoryView.
+
+        Args:
+            presenter: SalesHistoryPresenter ya configurado con la vista.
+        """
+        self._sales_history_view.set_presenter(presenter)
+
+    def set_cash_history_presenter(self, presenter) -> None:
+        """Inyecta el CashHistoryPresenter en la CashHistoryView.
+
+        Args:
+            presenter: CashHistoryPresenter ya configurado con la vista.
+        """
+        self._cash_history_view.set_presenter(presenter)
+
+    @property
+    def cash_close_view(self):
+        """Retorna la instancia de CashCloseView (pestaña F10)."""
+        return self._cash_close_view
+
+    @property
+    def sales_history_view(self):
+        """Retorna la instancia de SalesHistoryView (pestaña F2)."""
+        return self._sales_history_view
+
+    @property
+    def cash_history_view(self):
+        """Retorna la instancia de CashHistoryView (pestaña Historial de caja, solo ADMIN)."""
+        return self._cash_history_view
+
     # ------------------------------------------------------------------
     # ISaleView implementation
     # ------------------------------------------------------------------
@@ -188,11 +229,12 @@ class MainWindow(QMainWindow):
         self._total_widget.set_total(total)
 
     def show_search_results(self, products: list[Product]) -> None:
-        """Muestra la lista de resultados de búsqueda por nombre."""
+        """Muestra la lista de resultados de búsqueda por nombre debajo del input."""
         self._search_results.clear()
         for product in products:
             item = QListWidgetItem(
                 f"{product.name}  —  ${product.current_price.amount:,.2f}"
+                f"  |  Stock: {product.stock}"
             )
             item.setData(Qt.UserRole, product)
             self._search_results.addItem(item)
@@ -207,22 +249,27 @@ class MainWindow(QMainWindow):
         """Muestra un mensaje de error en la barra de estado (5 segundos)."""
         self.statusBar().showMessage(f"⚠ {message}", 5000)
 
+    def show_stock_error(self, message: str) -> None:
+        """Muestra un diálogo modal de error de stock.
+
+        Interrumpe al cajero con un QMessageBox para que quede claro
+        por qué el producto no se agregó al carrito.
+
+        Args:
+            message: Texto descriptivo del problema de stock.
+        """
+        QMessageBox.warning(self, "Sin stock", message)
+
     def show_sale_confirmed(self, sale: Sale) -> None:
-        """Muestra confirmación de venta exitosa y devuelve el foco al barcode."""
+        """Muestra el comprobante modal de venta y devuelve el foco al barcode."""
+        cart = self._presenter.get_cart() if self._presenter else {}
+        SaleReceiptDialog.show_receipt(sale, cart, self)
         self.statusBar().showMessage(
             f"✓ Venta #{str(sale.id)[:8]}... confirmada"
             f" — Total: ${sale.total_amount.amount:,.2f}",
             5000,
         )
         self._barcode_input.setFocus()
-
-    def show_payment_dialog(self) -> Optional[PaymentMethod]:
-        """Muestra el diálogo modal de selección de método de pago.
-
-        Returns:
-            PaymentMethod seleccionado, o None si se canceló.
-        """
-        return _PaymentDialog.select(self)
 
     def show_change_dialog(self, total: Price) -> bool:
         """Muestra el diálogo de vuelto para pago en efectivo (F12).
@@ -256,6 +303,50 @@ class MainWindow(QMainWindow):
 
         # Extraer QTabWidget e insertar ImportView en el tab placeholder
         self._tab_widget = ui_widget.findChild(QTabWidget, "tab_widget")
+
+        # Corner widget: indicador de caja + botones (esquina superior derecha).
+        from PySide6.QtWidgets import QHBoxLayout as _QHBoxLayout
+        from PySide6.QtWidgets import QPushButton as _QPushButton
+
+        _corner = QWidget()
+        _corner_layout = _QHBoxLayout(_corner)
+        _corner_layout.setContentsMargins(0, 0, 4, 0)
+        _corner_layout.setSpacing(6)
+
+        # Label de estado de caja (visible solo cuando hay caja abierta)
+        self._cash_status_label = QLabel("🟢 Caja abierta")
+        self._cash_status_label.setStyleSheet(
+            "color: #059669; font-size: 12px; font-weight: bold;"
+            "padding: 4px 8px; background: #d1fae5; border-radius: 5px;"
+        )
+        self._cash_status_label.setVisible(False)
+        _corner_layout.addWidget(self._cash_status_label)
+
+        # Botón para abrir caja (visible solo cuando NO hay caja abierta)
+        self._open_cash_btn = _QPushButton("Abrir caja")
+        self._open_cash_btn.clicked.connect(self._on_open_cash_clicked)
+        self._open_cash_btn.setStyleSheet(
+            "QPushButton { padding: 4px 12px; border-radius: 5px;"
+            "background: #ca8a04; color: white; border: none; font-size: 12px; }"
+            "QPushButton:hover { background: #a16207; }"
+        )
+        _corner_layout.addWidget(self._open_cash_btn)
+
+        self._cash_close_btn = _QPushButton("Cierre de caja")
+        self._cash_close_btn.clicked.connect(self._on_cash_close)
+        self._cash_close_btn.setStyleSheet(
+            "QPushButton { padding: 4px 12px; border-radius: 5px;"
+            "background: #0f766e; color: white; border: none; font-size: 12px; }"
+            "QPushButton:hover { background: #0d9488; }"
+        )
+        _corner_layout.addWidget(self._cash_close_btn)
+
+        self._admin_btn = _QPushButton("🔒 Administrador")
+        self._admin_btn.clicked.connect(self._on_admin_access_requested)
+        _corner_layout.addWidget(self._admin_btn)
+
+        self._tab_widget.setCornerWidget(_corner)
+
         tab_import = ui_widget.findChild(QWidget, "tab_import")
         self._import_view = ImportView()
         tab_layout = QVBoxLayout(tab_import)
@@ -284,15 +375,39 @@ class MainWindow(QMainWindow):
         self._stock_inject_view = StockInjectView(session_factory=self._session_factory)
         self._tab_widget.addTab(self._stock_inject_view, "Inyectar Stock (F7)")
 
+        # Tab 5: Historial de ventas (F2) — construido programáticamente
+        from src.infrastructure.ui.views.sales_history_view import SalesHistoryView
+
+        self._sales_history_view = SalesHistoryView(
+            session_factory=self._session_factory
+        )
+        self._tab_widget.addTab(self._sales_history_view, "Historial (F2)")
+
+        # Tab 6: Historial de cierres de caja (solo ADMIN) — construido programáticamente
+        from src.infrastructure.ui.views.cash_history_view import CashHistoryView
+
+        self._cash_history_view = CashHistoryView(
+            session_factory=self._session_factory
+        )
+        self._tab_widget.addTab(self._cash_history_view, "Historial de caja")
+
+        # Diálogo modal de cierre de caja (F10) — no es una pestaña
+        from src.infrastructure.ui.dialogs.cash_close_dialog import CashCloseDialog
+
+        self._cash_close_dialog = CashCloseDialog(
+            session_factory=self._session_factory, parent=self
+        )
+        self._cash_close_view = self._cash_close_dialog.cash_close_view
+        self._cash_close_view.set_session_changed_callback(self._on_cash_session_changed)
+
         self._tab_widget.currentChanged.connect(self._on_tab_changed)
+
+        # Carga el estado inicial de la caja para actualizar el indicador del corner.
+        self._load_initial_cash_state()
 
         self._barcode_input = ui_widget.findChild(
             __import__("PySide6.QtWidgets", fromlist=["QLineEdit"]).QLineEdit,
             "barcode_input",
-        )
-        self._search_input = ui_widget.findChild(
-            __import__("PySide6.QtWidgets", fromlist=["QLineEdit"]).QLineEdit,
-            "search_input",
         )
         self._search_results = ui_widget.findChild(
             __import__("PySide6.QtWidgets", fromlist=["QListWidget"]).QListWidget,
@@ -316,10 +431,6 @@ class MainWindow(QMainWindow):
             __import__("PySide6.QtWidgets", fromlist=["QPushButton"]).QPushButton,
             "btn_new_sale",
         )
-        btn_search = ui_widget.findChild(
-            __import__("PySide6.QtWidgets", fromlist=["QPushButton"]).QPushButton,
-            "btn_search",
-        )
         btn_confirm = ui_widget.findChild(
             __import__("PySide6.QtWidgets", fromlist=["QPushButton"]).QPushButton,
             "btn_confirm",
@@ -329,15 +440,111 @@ class MainWindow(QMainWindow):
             "btn_cash_close",
         )
 
+        btn_delete_item = ui_widget.findChild(
+            __import__("PySide6.QtWidgets", fromlist=["QPushButton"]).QPushButton,
+            "btn_delete_item",
+        )
+
         self._barcode_input.returnPressed.connect(self._on_barcode_entered)
-        self._search_input.returnPressed.connect(self._on_search_by_name)
         self._search_results.itemActivated.connect(self._on_search_item_selected)
         btn_new.clicked.connect(self._on_new_sale)
-        btn_search.clicked.connect(self._toggle_search)
         btn_confirm.clicked.connect(self._on_confirm_sale)
         btn_cash_close.clicked.connect(self._on_cash_close)
+        btn_delete_item.clicked.connect(self._on_cart_delete_key)
+        self._cart_table.installEventFilter(self)
+
+        # Bloquear tabs de admin DESPUÉS de haberlos agregado al tab widget.
+        self._lock_admin_tabs()
 
         self._barcode_input.setFocus()
+
+    def _load_initial_cash_state(self) -> None:
+        """Consulta la DB en un worker para conocer si hay caja abierta al arrancar."""
+        from datetime import date as _date
+
+        from src.infrastructure.ui.workers.cash_worker import LoadCashStateWorker
+
+        worker = LoadCashStateWorker(self._session_factory, _date.today())
+        worker.state_loaded.connect(
+            lambda state: self._on_cash_session_changed(state.get("cash_close") is not None)
+        )
+        worker.finished.connect(lambda: self._cleanup_worker(worker))
+        self._active_workers.append(worker)
+        worker.start()
+
+    def _on_cash_session_changed(self, is_open: bool) -> None:
+        """Actualiza el indicador y el botón de apertura según el estado de la caja.
+
+        Args:
+            is_open: True si hay arqueo abierto, False si está cerrado.
+        """
+        self._cash_status_label.setVisible(is_open)
+        self._open_cash_btn.setVisible(not is_open)
+
+    def _on_open_cash_clicked(self) -> None:
+        """Botón 'Abrir caja': solicita el monto inicial y lanza el worker de apertura."""
+        from decimal import Decimal
+
+        from PySide6.QtWidgets import QInputDialog
+
+        from src.infrastructure.ui.workers.cash_worker import OpenCashCloseWorker
+
+        amount, ok = QInputDialog.getDouble(
+            self,
+            "Abrir caja",
+            "Monto inicial ($):",
+            value=0.0,
+            min=0.0,
+            max=999999.99,
+            decimals=2,
+        )
+        if not ok:
+            return
+
+        worker = OpenCashCloseWorker(self._session_factory, Decimal(str(amount)))
+        worker.opened.connect(lambda _cc: self._on_cash_session_changed(True))
+        worker.opened.connect(
+            lambda _cc: self.statusBar().showMessage("✓ Caja abierta correctamente.", 4000)
+        )
+        worker.error_occurred.connect(
+            lambda msg: self.statusBar().showMessage(f"⚠ {msg}", 5000)
+        )
+        worker.finished.connect(lambda: self._cleanup_worker(worker))
+        self._active_workers.append(worker)
+        worker.start()
+
+    def set_elevate_use_case(self, use_case) -> None:
+        """Inyecta el caso de uso ElevateToAdmin.
+
+        Args:
+            use_case: Instancia de ElevateToAdmin ya configurada.
+        """
+        self._elevate_use_case = use_case
+
+    # Índices de las pestañas exclusivas de administrador.
+    _ADMIN_TAB_INDICES = [1, 2, 3, 4, 6]
+
+    def _lock_admin_tabs(self) -> None:
+        """Oculta las pestañas de administrador y muestra el botón de acceso bloqueado."""
+        for index in self._ADMIN_TAB_INDICES:
+            self._tab_widget.setTabVisible(index, False)
+        self._admin_btn.setText("🔒 Administrador")
+        self._admin_btn.setStyleSheet(
+            "QPushButton { padding: 4px 12px; border-radius: 5px;"
+            "background: #e2e8f0; color: #475569; border: none; font-size: 12px; }"
+            "QPushButton:hover { background: #cbd5e1; }"
+        )
+
+    def _unlock_admin_tabs(self) -> None:
+        """Muestra las pestañas de administrador y actualiza el botón a desbloqueado."""
+        for index in self._ADMIN_TAB_INDICES:
+            self._tab_widget.setTabVisible(index, True)
+        self._admin_btn.setText("🔓 Administrador")
+        self._admin_btn.setStyleSheet(
+            "QPushButton { padding: 4px 12px; border-radius: 5px;"
+            "background: #4f46e5; color: white; border: none; font-size: 12px; }"
+            "QPushButton:hover { background: #4338ca; }"
+        )
 
     def _setup_shortcuts(self) -> None:
         """Registra los atajos de teclado globales F1-F12 y Escape."""
@@ -356,33 +563,50 @@ class MainWindow(QMainWindow):
     # Handlers de eventos Qt (delegan toda lógica al presenter)
     # ------------------------------------------------------------------
 
+    def _on_admin_access_requested(self) -> None:
+        """Muestra el diálogo de PIN de administrador y desbloquea las pestañas si es correcto."""
+        from src.infrastructure.ui.dialogs.admin_pin_dialog import AdminPinDialog
+
+        dialog = AdminPinDialog(parent=self)
+        while True:
+            result = dialog.exec()
+            if result != QDialog.DialogCode.Accepted:
+                return
+            if not hasattr(self, "_elevate_use_case") or self._elevate_use_case is None:
+                return
+            if self._elevate_use_case.execute(dialog.pin):
+                self._unlock_admin_tabs()
+                return
+            dialog.show_error("PIN incorrecto. Intentá de nuevo.")
+
     def _on_barcode_entered(self) -> None:
-        """Enter en barcode_input: lanza SearchByBarcodeWorker."""
-        barcode = self._barcode_input.text().strip()
-        if not barcode or not self._presenter:
-            return
-        self._barcode_input.clear()
+        """Enter en barcode_input: auto-detecta tipo y lanza el worker correspondiente.
 
-        worker = SearchByBarcodeWorker(self._session_factory, barcode)
-        worker.product_found.connect(self._presenter.on_barcode_found)
-        worker.not_found.connect(self._presenter.on_barcode_not_found)
-        worker.error_occurred.connect(self._presenter.on_search_error)
-        worker.finished.connect(lambda: self._cleanup_worker(worker))
-        self._active_workers.append(worker)
-        worker.start()
-
-    def _on_search_by_name(self) -> None:
-        """Enter en search_input: lanza SearchByNameWorker."""
-        query = self._search_input.text().strip()
-        if not query or not self._presenter:
+        Si el texto es puramente numérico lanza ``SearchByBarcodeWorker``;
+        en caso contrario lanza ``SearchByNameWorker`` para búsqueda por nombre.
+        """
+        text = self._barcode_input.text().strip()
+        if not text or not self._presenter:
             return
 
-        worker = SearchByNameWorker(self._session_factory, query)
-        worker.results_ready.connect(self._presenter.on_search_results_ready)
-        worker.error_occurred.connect(self._presenter.on_search_error)
-        worker.finished.connect(lambda: self._cleanup_worker(worker))
-        self._active_workers.append(worker)
-        worker.start()
+        self._search_results.setVisible(False)
+
+        if text.isdigit():
+            self._barcode_input.clear()
+            worker = SearchByBarcodeWorker(self._session_factory, text)
+            worker.product_found.connect(self._presenter.on_barcode_found)
+            worker.not_found.connect(self._presenter.on_barcode_not_found)
+            worker.error_occurred.connect(self._presenter.on_search_error)
+            worker.finished.connect(lambda: self._cleanup_worker(worker))
+            self._active_workers.append(worker)
+            worker.start()
+        else:
+            worker = SearchByNameWorker(self._session_factory, text)
+            worker.results_ready.connect(self._presenter.on_search_results_ready)
+            worker.error_occurred.connect(self._presenter.on_search_error)
+            worker.finished.connect(lambda: self._cleanup_worker(worker))
+            self._active_workers.append(worker)
+            worker.start()
 
     def _on_search_item_selected(self, item: QListWidgetItem) -> None:
         """Enter/doble clic en search_results: agrega producto al carrito."""
@@ -390,7 +614,7 @@ class MainWindow(QMainWindow):
         if product and self._presenter:
             self._presenter.on_product_selected_from_list(product)
         self._search_results.setVisible(False)
-        self._search_input.setVisible(False)
+        self._barcode_input.clear()
         self._barcode_input.setFocus()
 
     def _on_new_sale(self) -> None:
@@ -417,22 +641,38 @@ class MainWindow(QMainWindow):
         worker.start()
 
     def _on_open_products(self) -> None:
-        """F5: navega al tab de gestión de productos."""
+        """F5: navega al tab de gestión de productos (solo ADMIN)."""
+        from src.infrastructure.ui.session import AppSession
+
+        if not AppSession.is_admin():
+            return
         self._tab_widget.setCurrentIndex(2)
         self._product_management_view.on_view_activated()
 
     def _on_open_stock_edit(self) -> None:
-        """F6: navega al tab de edición de stock."""
+        """F6: navega al tab de edición de stock (solo ADMIN)."""
+        from src.infrastructure.ui.session import AppSession
+
+        if not AppSession.is_admin():
+            return
         self._tab_widget.setCurrentIndex(3)
         self._stock_edit_view.on_view_activated()
 
     def _on_open_stock_inject(self) -> None:
-        """F7: navega al tab de inyección directa de stock."""
+        """F7: navega al tab de inyección directa de stock (solo ADMIN)."""
+        from src.infrastructure.ui.session import AppSession
+
+        if not AppSession.is_admin():
+            return
         self._tab_widget.setCurrentIndex(4)
         self._stock_inject_view.on_view_activated()
 
     def _on_open_import(self) -> None:
-        """F9: navega al tab de importación masiva de lista de precios."""
+        """F9: navega al tab de importación masiva de lista de precios (solo ADMIN)."""
+        from src.infrastructure.ui.session import AppSession
+
+        if not AppSession.is_admin():
+            return
         self._tab_widget.setCurrentIndex(1)
 
     def _on_tab_changed(self, index: int) -> None:
@@ -447,11 +687,14 @@ class MainWindow(QMainWindow):
             self._stock_edit_view.on_view_activated()
         elif index == 4:
             self._stock_inject_view.on_view_activated()
+        elif index == 5:
+            self._sales_history_view.on_view_activated()
+        elif index == 6:
+            self._cash_history_view.on_view_activated()
 
     def _on_cash_close(self) -> None:
-        """F10: cierre de caja."""
-        if self._presenter:
-            self._presenter.on_cash_close()
+        """F10 / botón Cierre de caja: abre el modal de arqueo."""
+        self._cash_close_dialog.open_and_activate()
 
     def _on_cash_payment(self) -> None:
         """F12: finalización de venta en efectivo con diálogo de vuelto."""
@@ -470,20 +713,41 @@ class MainWindow(QMainWindow):
         self._active_workers.append(worker)
         worker.start()
 
+    def eventFilter(self, obj, event) -> bool:
+        """Captura Delete sobre cart_table para eliminar el ítem seleccionado.
+
+        Args:
+            obj: Objeto que generó el evento.
+            event: Evento Qt recibido.
+
+        Returns:
+            True si el evento fue consumido, False para propagación normal.
+        """
+        if obj is self._cart_table and event.type() == QEvent.Type.KeyPress:
+            if event.key() == Qt.Key.Key_Delete:
+                self._on_cart_delete_key()
+                return True
+        return super().eventFilter(obj, event)
+
+    def _on_cart_delete_key(self) -> None:
+        """Elimina del carrito el producto de la fila seleccionada (tecla Supr)."""
+        if not self._presenter:
+            return
+        row = self._cart_table.currentRow()
+        if row < 0:
+            return
+        name_item = self._cart_table.item(row, 0)
+        if name_item:
+            product_id = name_item.data(Qt.UserRole)
+            self._presenter.on_remove_selected_item(product_id)
+
     def _toggle_search(self) -> None:
-        """F2: activa o desactiva el campo de búsqueda por nombre."""
-        visible = not self._search_input.isVisible()
-        self._search_input.setVisible(visible)
-        if visible:
-            self._search_input.setFocus()
-            self._search_input.selectAll()
-        else:
-            self._search_results.setVisible(False)
-            self._barcode_input.setFocus()
+        """F2: navega al tab de historial de ventas."""
+        self._tab_widget.setCurrentIndex(5)
+        self._sales_history_view.on_view_activated()
 
     def _on_escape(self) -> None:
-        """Escape: cancela búsqueda y vuelve el foco al barcode_input."""
-        self._search_input.setVisible(False)
+        """Escape: oculta resultados y devuelve el foco al barcode_input."""
         self._search_results.setVisible(False)
         self._barcode_input.setFocus()
 
@@ -504,7 +768,7 @@ class MainWindow(QMainWindow):
         if sale_in_progress:
             message = (
                 "Hay una venta en curso. "
-                "Si sale ahora, los datos se perderán.\n"
+                "Se guardará automáticamente y se restaurará al volver a abrir el sistema.\n"
                 "¿Desea salir de todos modos?"
             )
         else:
@@ -549,55 +813,3 @@ class MainWindow(QMainWindow):
             self._active_workers.remove(worker)
 
 
-class _PaymentDialog(QDialog):
-    """Diálogo modal para seleccionar el método de pago.
-
-    Keyboard-first: el cajero selecciona con flechas y confirma con Enter.
-    """
-
-    def __init__(self, parent=None) -> None:
-        super().__init__(parent)
-        self.setWindowTitle("Método de Pago")
-        self.setModal(True)
-        self._selected: Optional[PaymentMethod] = None
-
-        layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("Seleccione el método de pago:"))
-
-        self._radio_cash = QRadioButton("Efectivo  (EFECTIVO)")
-        self._radio_debit = QRadioButton("Débito  (DEBITO)")
-        self._radio_transfer = QRadioButton("Transferencia / Mercado Pago  (TRANSFERENCIA)")
-        self._radio_cash.setChecked(True)
-
-        layout.addWidget(self._radio_cash)
-        layout.addWidget(self._radio_debit)
-        layout.addWidget(self._radio_transfer)
-
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.accepted.connect(self._on_accepted)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-    def _on_accepted(self) -> None:
-        if self._radio_cash.isChecked():
-            self._selected = PaymentMethod.CASH
-        elif self._radio_debit.isChecked():
-            self._selected = PaymentMethod.DEBIT
-        else:
-            self._selected = PaymentMethod.TRANSFER
-        self.accept()
-
-    @classmethod
-    def select(cls, parent=None) -> Optional[PaymentMethod]:
-        """Muestra el diálogo y retorna el método seleccionado.
-
-        Args:
-            parent: QWidget padre para centrar el diálogo.
-
-        Returns:
-            PaymentMethod seleccionado, o None si se canceló.
-        """
-        dialog = cls(parent)
-        if dialog.exec() == QDialog.Accepted:
-            return dialog._selected
-        return None

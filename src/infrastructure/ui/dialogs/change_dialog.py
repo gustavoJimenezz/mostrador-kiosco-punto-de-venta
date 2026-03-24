@@ -88,11 +88,19 @@ class ChangeDialog(QDialog):
     Args:
         total: Monto total de la venta.
         parent: Widget padre para centrar el diálogo (opcional).
+        default_amount: Monto pre-cargado en el input (opcional). Si se omite,
+            se pre-carga el total de la venta.
     """
 
-    def __init__(self, total: Price, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        total: Price,
+        parent: QWidget | None = None,
+        default_amount: Price | None = None,
+    ) -> None:
         super().__init__(parent)
         self._total = total
+        self._default_amount = default_amount
 
         self.setWindowTitle("Cobrar — Efectivo")
         self.setModal(True)
@@ -100,6 +108,18 @@ class ChangeDialog(QDialog):
         self.setStyleSheet(_DIALOG_QSS)
 
         self._build_ui()
+
+        # Pre-cargar input con el total (o default_amount si se proveyó)
+        fill_value = default_amount if default_amount is not None else total
+        self._amount_input.setText(str(fill_value.amount))
+        self._amount_input.selectAll()
+        self._calculate_change(str(fill_value.amount))
+
+        # Tamaño: 3/4 del padre
+        if parent:
+            ps = parent.size()
+            self.resize(ps.width() * 3 // 4, ps.height() * 3 // 4)
+
         self._amount_input.setFocus()
 
     # ------------------------------------------------------------------
@@ -107,17 +127,24 @@ class ChangeDialog(QDialog):
     # ------------------------------------------------------------------
 
     @classmethod
-    def show_and_confirm(cls, total: Price, parent: QWidget | None = None) -> bool:
+    def show_and_confirm(
+        cls,
+        total: Price,
+        parent: QWidget | None = None,
+        default_amount: Price | None = None,
+    ) -> bool:
         """Muestra el diálogo y retorna si el cajero confirmó el cobro.
 
         Args:
             total: Monto total de la venta a cobrar.
             parent: Widget padre para centrar el diálogo.
+            default_amount: Monto pre-cargado en el input. Si se omite, se
+                pre-carga el total de la venta.
 
         Returns:
             True si el cajero confirmó, False si canceló (Escape / botón).
         """
-        dialog = cls(total, parent)
+        dialog = cls(total, parent, default_amount=default_amount)
         return dialog.exec() == QDialog.Accepted
 
     # ------------------------------------------------------------------

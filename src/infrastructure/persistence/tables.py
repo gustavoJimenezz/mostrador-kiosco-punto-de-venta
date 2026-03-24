@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from sqlalchemy import (
     CHAR,
+    Boolean,
     Column,
     DateTime,
     Enum as SAEnum,
@@ -23,8 +24,31 @@ from sqlalchemy import (
 )
 
 from src.domain.models.sale import PaymentMethod
+from src.domain.models.user import UserRole
 
 metadata = MetaData()
+
+# ---------------------------------------------------------------------------
+# users — Operadores del sistema POS (autenticación por PIN)
+# ---------------------------------------------------------------------------
+users_table = Table(
+    "users",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("name", String(100), nullable=False),
+    Column(
+        "role",
+        SAEnum(
+            UserRole,
+            values_callable=lambda x: [e.value for e in x],
+            name="user_role_enum",
+        ),
+        nullable=False,
+    ),
+    # Hash bcrypt de 60 caracteres. Nunca almacenar el PIN en texto plano.
+    Column("pin_hash", String(60), nullable=False),
+    Column("is_active", Boolean, nullable=False, server_default="1"),
+)
 
 # ---------------------------------------------------------------------------
 # categories — Categorías de productos (ej: Golosinas, Bebidas)
@@ -128,6 +152,30 @@ sale_items_table = Table(
     Column("quantity", Integer, nullable=False),
     # Crítico: precio en el momento exacto de la venta. Nunca se recalcula.
     Column("price_at_sale", Numeric(12, 2), nullable=False),
+)
+
+# ---------------------------------------------------------------------------
+# cash_movements — Movimientos manuales de caja (ingresos/egresos)
+# ---------------------------------------------------------------------------
+cash_movements_table = Table(
+    "cash_movements",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column(
+        "cash_close_id",
+        Integer,
+        ForeignKey("cash_closes.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("amount", Numeric(12, 2), nullable=False),
+    Column(
+        "movement_type",
+        SAEnum("INGRESO", "EGRESO", name="movement_type_enum"),
+        nullable=False,
+    ),
+    Column("description", String(250), nullable=False, server_default=""),
+    Column("created_at", DateTime, nullable=False),
+    Index("ix_cash_movements_cash_close_id", "cash_close_id"),
 )
 
 # ---------------------------------------------------------------------------

@@ -47,7 +47,6 @@ class FakeView:
         self.search_results: list[Product] = []
         self.errors: list[str] = []
         self.sale_confirmed: Optional[Sale] = None
-        self.payment_dialog_return: Optional[PaymentMethod] = PaymentMethod.CASH
         self.change_dialog_return: bool = True
         self.last_change_dialog_total: Optional[Price] = None
 
@@ -66,11 +65,11 @@ class FakeView:
     def show_error(self, message: str) -> None:
         self.errors.append(message)
 
+    def show_stock_error(self, message: str) -> None:
+        self.errors.append(message)
+
     def show_sale_confirmed(self, sale: Sale) -> None:
         self.sale_confirmed = sale
-
-    def show_payment_dialog(self) -> Optional[PaymentMethod]:
-        return self.payment_dialog_return
 
     def show_change_dialog(self, total: Price) -> bool:
         self.last_change_dialog_total = total
@@ -352,19 +351,10 @@ class TestConfirmSale:
 
         assert result == PaymentMethod.CASH
 
-    def test_confirm_sale_returns_selected_payment_method(
-        self, presenter: SalePresenter, view: FakeView, product: Product
-    ) -> None:
-        view.payment_dialog_return = PaymentMethod.TRANSFER
-        presenter.on_barcode_found(product)
-        result = presenter.on_confirm_sale_requested()
-
-        assert result == PaymentMethod.TRANSFER
-
     def test_confirm_sale_returns_none_when_dialog_cancelled(
         self, presenter: SalePresenter, view: FakeView, product: Product
     ) -> None:
-        view.payment_dialog_return = None
+        view.change_dialog_return = False
         presenter.on_barcode_found(product)
         result = presenter.on_confirm_sale_requested()
 
@@ -473,3 +463,164 @@ class TestCashPayment:
         presenter.on_cash_payment_requested()
 
         assert view.last_change_dialog_total == Price("300.00")
+
+
+# ---------------------------------------------------------------------------
+# Tests: eliminar ítem individual del carrito (Supr)
+# ---------------------------------------------------------------------------
+
+
+class TestRemoveCartItem:
+    def test_remove_existing_item_clears_it_from_presenter_cart(
+        self, presenter: SalePresenter, view: FakeView, product: Product
+    ) -> None:
+        presenter.on_barcode_found(product)
+        presenter.on_remove_selected_item(product.id)
+
+        assert product.id not in presenter.get_cart()
+
+    def test_remove_existing_item_clears_it_from_view(
+        self, presenter: SalePresenter, view: FakeView, product: Product
+    ) -> None:
+        presenter.on_barcode_found(product)
+        presenter.on_remove_selected_item(product.id)
+
+        assert product.id not in view.cart_items
+
+    def test_remove_last_item_leaves_cart_empty(
+        self, presenter: SalePresenter, view: FakeView, product: Product
+    ) -> None:
+        presenter.on_barcode_found(product)
+        presenter.on_remove_selected_item(product.id)
+
+        assert len(presenter.get_cart()) == 0
+        assert len(view.cart_items) == 0
+
+    def test_remove_item_updates_total_to_zero(
+        self, presenter: SalePresenter, view: FakeView, product: Product
+    ) -> None:
+        presenter.on_barcode_found(product)
+        presenter.on_remove_selected_item(product.id)
+
+        assert view.last_total.amount == Decimal("0.00")
+
+    def test_remove_one_of_two_items_leaves_other_intact(
+        self, presenter: SalePresenter, view: FakeView
+    ) -> None:
+        p1 = _make_product(barcode="001", name="Producto A", product_id=1)
+        p2 = _make_product(barcode="002", name="Producto B", product_id=2)
+        presenter.on_barcode_found(p1)
+        presenter.on_barcode_found(p2)
+
+        presenter.on_remove_selected_item(p1.id)
+
+        assert p1.id not in presenter.get_cart()
+        assert p2.id in presenter.get_cart()
+
+    def test_remove_one_of_two_items_recalculates_total(
+        self, presenter: SalePresenter, view: FakeView
+    ) -> None:
+        p1 = _make_product(barcode="001", cost="100.00", margin="0.00", product_id=1)
+        p2 = _make_product(barcode="002", cost="200.00", margin="0.00", product_id=2)
+        presenter.on_barcode_found(p1)
+        presenter.on_barcode_found(p2)
+
+        presenter.on_remove_selected_item(p1.id)
+
+        assert view.last_total == Price("200.00")
+
+    def test_remove_nonexistent_product_id_is_noop(
+        self, presenter: SalePresenter, view: FakeView, product: Product
+    ) -> None:
+        presenter.on_barcode_found(product)
+        presenter.on_remove_selected_item(9999)
+
+        assert len(presenter.get_cart()) == 1
+        assert len(view.errors) == 0
+
+    def test_remove_item_with_multiple_units_removes_entirely(
+        self, presenter: SalePresenter, view: FakeView, product: Product
+    ) -> None:
+        presenter.on_barcode_found(product)
+        presenter.on_barcode_found(product)
+        presenter.on_barcode_found(product)
+        assert presenter.get_cart()[product.id][1] == 3
+
+        presenter.on_remove_selected_item(product.id)
+
+        assert product.id not in presenter.get_cart()
+
+
+# ---------------------------------------------------------------------------
+# Tests: validación de stock al agregar al carrito
+# ---------------------------------------------------------------------------
+
+
+class TestStockValidation:
+    def test_product_with_zero_stock_not_added_to_cart(
+        self, presenter: SalePresenter, view: FakeView
+    ) -> None:
+        product = _make_product(stock=0)
+        presenter.on_barcode_found(product)
+
+        assert product.id not in presenter.get_cart()
+        assert len(view.errors) == 1
+
+    def test_product_with_zero_stock_shows_error_message(
+        self, presenter: SalePresenter, view: FakeView
+    ) -> None:
+        product = _make_product(name="Galletitas", stock=0)
+        presenter.on_barcode_found(product)
+
+        assert "Galletitas" in view.errors[0]
+        assert "stock" in view.errors[0].lower()
+
+    def test_exceeding_stock_on_barcode_scan_shows_error(
+        self, presenter: SalePresenter, view: FakeView
+    ) -> None:
+        product = _make_product(stock=2)
+        presenter.on_barcode_found(product)
+        presenter.on_barcode_found(product)
+        # cantidad == stock, siguiente debe fallar
+        presenter.on_barcode_found(product)
+
+        assert presenter.get_cart()[product.id][1] == 2
+        assert len(view.errors) == 1
+
+    def test_exceeding_stock_on_barcode_scan_error_mentions_product(
+        self, presenter: SalePresenter, view: FakeView
+    ) -> None:
+        product = _make_product(name="Agua 500ml", stock=1)
+        presenter.on_barcode_found(product)
+        presenter.on_barcode_found(product)
+
+        assert "Agua 500ml" in view.errors[0]
+
+    def test_quantity_change_above_stock_shows_error_and_does_not_update(
+        self, presenter: SalePresenter, view: FakeView
+    ) -> None:
+        product = _make_product(stock=3)
+        presenter.on_barcode_found(product)
+        presenter.on_quantity_changed(product.id, 5)
+
+        assert presenter.get_cart()[product.id][1] == 1
+        assert len(view.errors) == 1
+
+    def test_quantity_change_equal_to_stock_is_allowed(
+        self, presenter: SalePresenter, view: FakeView
+    ) -> None:
+        product = _make_product(stock=3)
+        presenter.on_barcode_found(product)
+        presenter.on_quantity_changed(product.id, 3)
+
+        assert presenter.get_cart()[product.id][1] == 3
+        assert len(view.errors) == 0
+
+    def test_product_selected_from_list_with_zero_stock_blocked(
+        self, presenter: SalePresenter, view: FakeView
+    ) -> None:
+        product = _make_product(stock=0)
+        presenter.on_product_selected_from_list(product)
+
+        assert product.id not in presenter.get_cart()
+        assert len(view.errors) == 1

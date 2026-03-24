@@ -4,21 +4,23 @@ scaner codigo: agrega productos con el scaner de barra de codigo
 Falta:
 Crear manual de usuario
 
-Boton de elimar producto del carrito 
+agregar logo, en las ventanas modal y en la ventana principal, la primera
+
+boton para cerrar las pesta;as del administrador
+
 
 Respaldo de carrito al cerrar el programa
 
-Fucionar el input de barra de codigo con el input de f2 buscar, que no sea necesario apretar f2 para buscar (por el momento, se planea que el boton f2 se use en el futuro para dar el mismo resultado pero con mas detalle), y al buscar por palabra o por letras, que de el mismo resultado del que ya tiene el buscador.
 
 Texto TOTAL mas sincronico
 
-Boton f4 cobrar, tiene que tener el siguiente comportamiento.
-borrar la opcion de checkbox de efectivo o debito, los usuarios van a pagar en efectivo, apariencia de la ventana modal  de 3 cuarto de del tama;o de la ventana princippal 
-donde se pueda agregar con cuanta plata pago el cliente, por defecto que el input venga value del total de la compra, con un boton confirmar o cancelar compra, que tenga como atajo el boton enter y que de el resultado para devolver el cambio 
+al cerrar el programa y si hay alguna venta sin terminar que quede guardado hasta que se abra el programa, por corrtes de luz o cierres involuntarios, y no perder la infromacion de la venta
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+
+terminado 
 
 control de stock: 
-
-Editar el stock en la ventana de Productos.
 
 Crear otra ventana donde se pueda editar el stock (editar) que se puede llamar "editar stock " con la estrauctura siguiente, se van a dividir en dos secciones una abajo de la otra la primera seccion (parte de arriba) un input para poder buscar por codigo de barra o por letras 0 nombres como el mismo buscador que se encuentra en la ventana de Venta con f2 y cuando se encuentra o selecciona un producto de los resultados de coincidencia poder editar el stock de la siguiente manera:
 una opcion de agregar stock y otro de retirar stock, teniendo como primera opcion y por defecto el de agregar stock esta misma tiene que tener un input donde se agrega la cantidad que se quiere restar al valor del stock del producto esto se tiene que  hacer restando o sumando sobre el stock real del producto(para una funcionalidad practica).
@@ -26,4 +28,51 @@ Segunda seccion (parte de abajo) que va a mostrar un listado de los productos qu
 
 Crear otra ventana que se va a llamar "inyectar stock directamente" con la estrauctura siguiente, se van a dividir en dos secciones una abajo de la otra que  tenga un input directo para agregar el numero que se va a sumar al stock del producto y al lado otro inpunt donde se va a colocar la barra de codigo del producto con la siguiente funcionalidad: si se encutra el producto con el codigo de barra sumarle directamente el stock, si no se encuentra ningun producto, avisar que no se encontro el producto, y si se busca con letras o nombres como el mismo buscador que se encuentra en la ventana de Venta con f2 y cuando se encuentra o selecciona un producto de los resultados de coincidencia agrgar el stock que se ingreso.
 Segunda seccion (parte de abajo) que va a mostrar un listado de los productos que se estan editando mostrando todos los detalle e informacion del producto con el stock actualizado.
+
+
+Agrega ventana mensaje de confirmacion cuando se confirma el camvio en el stock
+
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+terminado
+
+
+Fucionar el input de barra de codigo con el input de f2 buscar, que no sea necesario apretar f2 para buscar (por el momento, se planea que el boton f2 se use en el futuro para dar el mismo resultado pero con mas detalle, queda ppendiente), y al buscar por palabra o por letras, similar al buscador de la ventana de editar estock algo similar.
+
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+terminado 
+
+Boton de elimar producto del carrito 
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+
+terminado
+
+
+Boton f4 cobrar, tiene que tener el siguiente comportamiento.
+borrar la opcion de checkbox de efectivo o debito, los usuarios van a pagar en efectivo, apariencia de la ventana modal del tamaño igual a la tres cuartas partes de la ventana princippal, que sea grende  
+donde se pueda agregar con cuanta plata pago el cliente, por defecto que el input venga value del total de la compra, con un boton confirmar o cancelar compra, que tenga como atajo el boton enter y que de el resultado para devolver el cambio 
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+
+terminado
+
+agregar autenticacion
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+
+TO DO
+resultado esperado: trasladar la pesta;a de cierrre de caja f10 a un submodal grande al apretar un boton:
+
+no mostrar la pesta;a de cierrre de caja f10, crear un boton al lado de de "Administrador" (que es el que habbilita las pesta;as de administrador) que se llame "Cierre de caja" que muestre una subventana modal grande, donde se pueda hacer el cierre de caja
+ 
+una tabla de cierres de cajas
+
+tener un historial de cierrres de caja con todos los detalles de los cierres de caja para tener toda la contabilidad a mano
+
+una tabla de moviemientos manuales, que va representar gastos adicionales y consumos en el  dia
+
+
+mover la parte de monto inicial, a la ventana de atutenticacion, un input arriba de ingresar contrase;a, esta opcion se tiene que ver o estar habilitada cuando no hay una sesion iniciada o no se haya aplicado el monto inicial anteriormente
+
 

@@ -73,6 +73,20 @@ poetry run python src/main.py
 
 ---
 
+## Credenciales por defecto 
+
+Al ejecutar `alembic upgrade head` se crea automáticamente un usuario administrador:
+
+| Campo | Valor |
+|-------|-------|
+| Usuario | `Administrador` |
+| PIN | `1234` |
+| Rol | Admin (acceso completo) |
+
+> **Importante:** Cambiar el PIN desde Configuración → Usuarios tras el primer inicio.
+
+---
+
 ## Tests
 
 ```bash
