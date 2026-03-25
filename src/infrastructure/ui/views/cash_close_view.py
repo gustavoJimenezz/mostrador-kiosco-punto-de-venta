@@ -85,22 +85,26 @@ class CashCloseView(QWidget):
 
     def show_session_open(self, cash_close: CashClose) -> None:
         """Actualiza los widgets para mostrar sesión abierta."""
+        from src.infrastructure.ui.theme import SUCCESS_COLOR
+
         self._active_cash_close_id = cash_close.id
         hora = cash_close.opened_at.strftime("%H:%M")
         self._lbl_status.setText(
             f"✓ Sesión abierta desde las {hora}  "
             f"(monto inicial: ${cash_close.opening_amount:,.2f})"
         )
-        self._lbl_status.setStyleSheet("color: #059669; font-weight: bold;")
+        self._lbl_status.setStyleSheet(f"color: {SUCCESS_COLOR}; font-weight: bold;")
         self._btn_close.setEnabled(True)
         if self._session_changed_callback:
             self._session_changed_callback(True)
 
     def show_session_closed(self) -> None:
         """Actualiza los widgets para mostrar que no hay sesión activa."""
+        from src.infrastructure.ui.theme import TEXT_SECONDARY_COLOR
+
         self._active_cash_close_id = None
         self._lbl_status.setText("No hay caja abierta. Abrila desde el botón superior.")
-        self._lbl_status.setStyleSheet("color: #6b7280;")
+        self._lbl_status.setStyleSheet(f"color: {TEXT_SECONDARY_COLOR};")
         self._btn_close.setEnabled(False)
         self._lbl_difference.setText("")
         if self._session_changed_callback:
@@ -125,15 +129,17 @@ class CashCloseView(QWidget):
         Args:
             total: Suma neta (positivo = ingresos netos, negativo = egresos netos).
         """
+        from src.infrastructure.ui.theme import DANGER_COLOR, SUCCESS_COLOR, TEXT_SECONDARY_COLOR
+
         if total > Decimal("0"):
             texto = f"Movimientos manuales: +${total:,.2f}"
-            color = "#059669"
+            color = SUCCESS_COLOR
         elif total < Decimal("0"):
             texto = f"Movimientos manuales: -${abs(total):,.2f}"
-            color = "#dc2626"
+            color = DANGER_COLOR
         else:
             texto = "Movimientos manuales: $0,00"
-            color = "#6b7280"
+            color = TEXT_SECONDARY_COLOR
         self._lbl_movements_total.setText(texto)
         self._lbl_movements_total.setStyleSheet(
             f"font-family: monospace; color: {color};"
@@ -141,6 +147,8 @@ class CashCloseView(QWidget):
 
     def show_close_result(self, difference: Optional[Decimal]) -> None:
         """Muestra la diferencia (sobrante/faltante) al cerrar la caja."""
+        from src.infrastructure.ui.theme import DANGER_COLOR, SUCCESS_COLOR
+
         if difference is None:
             self._lbl_difference.setText("")
             return
@@ -148,22 +156,26 @@ class CashCloseView(QWidget):
             self._lbl_difference.setText(
                 f"Sobrante: ${difference:,.2f}"
             )
-            self._lbl_difference.setStyleSheet("color: #059669; font-weight: bold;")
+            self._lbl_difference.setStyleSheet(f"color: {SUCCESS_COLOR}; font-weight: bold;")
         else:
             self._lbl_difference.setText(
                 f"Faltante: ${abs(difference):,.2f}"
             )
-            self._lbl_difference.setStyleSheet("color: #dc2626; font-weight: bold;")
+            self._lbl_difference.setStyleSheet(f"color: {DANGER_COLOR}; font-weight: bold;")
 
     def show_error(self, message: str) -> None:
         """Muestra mensaje de error en el label de estado."""
+        from src.infrastructure.ui.theme import DANGER_COLOR
+
         self._status_label.setText(f"⚠ {message}")
-        self._status_label.setStyleSheet("color: #dc2626;")
+        self._status_label.setStyleSheet(f"color: {DANGER_COLOR};")
 
     def show_success(self, message: str) -> None:
         """Muestra mensaje de éxito en el label de estado."""
+        from src.infrastructure.ui.theme import SUCCESS_COLOR
+
         self._status_label.setText(f"✓ {message}")
-        self._status_label.setStyleSheet("color: #059669;")
+        self._status_label.setStyleSheet(f"color: {SUCCESS_COLOR};")
 
     # ------------------------------------------------------------------
     # Handlers Qt
@@ -241,25 +253,27 @@ class CashCloseView(QWidget):
         grp_session = QGroupBox("Sesión de caja")
         v_session = QVBoxLayout(grp_session)
 
+        from src.infrastructure.ui.theme import TEXT_SECONDARY_COLOR
+
         self._lbl_status = QLabel("Sin sesión activa.")
-        self._lbl_status.setStyleSheet("color: #6b7280;")
+        self._lbl_status.setStyleSheet(f"color: {TEXT_SECONDARY_COLOR};")
         v_session.addWidget(self._lbl_status)
         root.addWidget(grp_session)
 
         # --- Ventas del día ----------------------------------------
         grp_sales = QGroupBox("Ventas del día")
         v_sales = QVBoxLayout(grp_sales)
-        font_mono = "font-family: monospace;"
+        _mono = "font-family: monospace;"
 
         self._lbl_sales_cash = QLabel("Efectivo:        $        0,00")
-        self._lbl_sales_cash.setStyleSheet(font_mono)
+        self._lbl_sales_cash.setStyleSheet(_mono)
         self._lbl_sales_debit = QLabel("Débito:          $        0,00")
-        self._lbl_sales_debit.setStyleSheet(font_mono)
+        self._lbl_sales_debit.setStyleSheet(_mono)
         self._lbl_sales_transfer = QLabel("Transferencia:   $        0,00")
-        self._lbl_sales_transfer.setStyleSheet(font_mono)
+        self._lbl_sales_transfer.setStyleSheet(_mono)
         self._lbl_total_sales = QLabel("TOTAL VENTAS:    $        0,00")
         self._lbl_total_sales.setStyleSheet(
-            f"{font_mono} font-weight: bold; font-size: 14px;"
+            f"{_mono} font-weight: bold; font-size: 14px;"
         )
         for lbl in (
             self._lbl_sales_cash,
@@ -274,8 +288,12 @@ class CashCloseView(QWidget):
         grp_close = QGroupBox("Cierre de caja")
         v_close = QVBoxLayout(grp_close)
 
+        from src.infrastructure.ui.theme import TEXT_SECONDARY_COLOR
+
         self._lbl_movements_total = QLabel("Movimientos manuales: $0,00")
-        self._lbl_movements_total.setStyleSheet("font-family: monospace; color: #6b7280;")
+        self._lbl_movements_total.setStyleSheet(
+            f"font-family: monospace; color: {TEXT_SECONDARY_COLOR};"
+        )
         v_close.addWidget(self._lbl_movements_total)
 
         row_close = QHBoxLayout()
@@ -285,8 +303,10 @@ class CashCloseView(QWidget):
         self._spin_closing.setDecimals(2)
         self._spin_closing.setSingleStep(100)
         row_close.addWidget(self._spin_closing)
+        from src.infrastructure.ui.theme import get_btn_primary_stylesheet
+
         self._btn_close = QPushButton("Cerrar caja")
-        self._btn_close.setStyleSheet("background-color: #4f46e5; color: white;")
+        self._btn_close.setStyleSheet(get_btn_primary_stylesheet())
         self._btn_close.clicked.connect(self._on_close_clicked)
         row_close.addWidget(self._btn_close)
         row_close.addStretch()

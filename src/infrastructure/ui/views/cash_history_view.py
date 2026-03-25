@@ -97,6 +97,8 @@ class CashHistoryView(QWidget):
             closes: Lista de CashClose a renderizar.
             movements_totals: Mapa ``{cash_close_id: total_neto}`` de movimientos.
         """
+        from src.infrastructure.ui.theme import TEXT_PRIMARY_COLOR
+
         self._table.setRowCount(0)
         for cc in closes:
             row = self._table.rowCount()
@@ -109,7 +111,7 @@ class CashHistoryView(QWidget):
         self._status_label.setText(
             f"{count} arqueo{'s' if count != 1 else ''} encontrado{'s' if count != 1 else ''}."
         )
-        self._status_label.setStyleSheet("color: #374151;")
+        self._status_label.setStyleSheet(f"color: {TEXT_PRIMARY_COLOR};")
 
     def show_loading(self, loading: bool) -> None:
         """Muestra u oculta el indicador de carga.
@@ -126,8 +128,10 @@ class CashHistoryView(QWidget):
         Args:
             message: Texto del error.
         """
+        from src.infrastructure.ui.theme import DANGER_COLOR
+
         self._status_label.setText(f"⚠ {message}")
-        self._status_label.setStyleSheet("color: #dc2626;")
+        self._status_label.setStyleSheet(f"color: {DANGER_COLOR};")
 
     # ------------------------------------------------------------------
     # UI construction
@@ -159,18 +163,15 @@ class CashHistoryView(QWidget):
         self._date_to.setDate(today)
         row_filter.addWidget(self._date_to)
 
+        from src.infrastructure.ui.theme import TEXT_SECONDARY_COLOR, get_btn_primary_stylesheet
+
         self._btn_search = QPushButton("Buscar")
-        self._btn_search.setStyleSheet(
-            "QPushButton { padding: 4px 16px; border-radius: 4px;"
-            "background: #4f46e5; color: white; border: none; }"
-            "QPushButton:hover { background: #4338ca; }"
-            "QPushButton:disabled { background: #a5b4fc; }"
-        )
+        self._btn_search.setStyleSheet(get_btn_primary_stylesheet())
         self._btn_search.clicked.connect(self._on_search)
         row_filter.addWidget(self._btn_search)
 
         self._lbl_loading = QLabel("Cargando...")
-        self._lbl_loading.setStyleSheet("color: #6b7280; font-style: italic;")
+        self._lbl_loading.setStyleSheet(f"color: {TEXT_SECONDARY_COLOR}; font-style: italic;")
         self._lbl_loading.setVisible(False)
         row_filter.addWidget(self._lbl_loading)
 
@@ -194,7 +195,7 @@ class CashHistoryView(QWidget):
 
         # --- Estado ----------------------------------------------------
         self._status_label = QLabel("Seleccione un rango de fechas y presione Buscar.")
-        self._status_label.setStyleSheet("color: #6b7280;")
+        self._status_label.setStyleSheet(f"color: {TEXT_SECONDARY_COLOR};")
         root.addWidget(self._status_label)
 
     # ------------------------------------------------------------------
@@ -251,12 +252,14 @@ class CashHistoryView(QWidget):
             f"${cc.closing_amount:,.2f}" if cc.closing_amount is not None else "—"
         )
 
+        from src.infrastructure.ui.theme import DANGER_COLOR, SUCCESS_COLOR, TEXT_PRIMARY_COLOR, WARNING_COLOR
+
         if mov_total > Decimal("0"):
             mov_text = f"+${mov_total:,.2f}"
-            mov_color = "#059669"
+            mov_color = SUCCESS_COLOR
         elif mov_total < Decimal("0"):
             mov_text = f"-${abs(mov_total):,.2f}"
-            mov_color = "#dc2626"
+            mov_color = DANGER_COLOR
         else:
             mov_text = "$0,00"
             mov_color = None
@@ -267,13 +270,13 @@ class CashHistoryView(QWidget):
             diff_color = None
         elif diferencia >= Decimal("0"):
             diff_text = f"+${diferencia:,.2f}"
-            diff_color = "#059669"
+            diff_color = SUCCESS_COLOR
         else:
             diff_text = f"-${abs(diferencia):,.2f}"
-            diff_color = "#dc2626"
+            diff_color = DANGER_COLOR
 
         estado = "Abierta" if cc.is_open else "Cerrada"
-        estado_color = "#d97706" if cc.is_open else "#374151"
+        estado_color = WARNING_COLOR if cc.is_open else TEXT_PRIMARY_COLOR
 
         values = [
             fecha, apertura, cierre, fondo,

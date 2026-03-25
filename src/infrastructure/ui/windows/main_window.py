@@ -318,6 +318,16 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Mostrador POS")
         self.resize(960, 640)
 
+        # Aplicar paleta centralizada (propaga a todos los hijos incluyendo el .ui).
+        from src.infrastructure.ui.theme import (
+            get_btn_corner_teal_stylesheet,
+            get_btn_corner_secondary_stylesheet,
+            get_btn_warning_stylesheet,
+            get_cash_status_badge_stylesheet,
+            get_global_stylesheet,
+        )
+        self.setStyleSheet(get_global_stylesheet())
+
         # Extraer QTabWidget e insertar ImportView en el tab placeholder
         self._tab_widget = ui_widget.findChild(QTabWidget, "tab_widget")
 
@@ -332,30 +342,19 @@ class MainWindow(QMainWindow):
 
         # Label de estado de caja (visible solo cuando hay caja abierta)
         self._cash_status_label = QLabel("🟢 Caja abierta")
-        self._cash_status_label.setStyleSheet(
-            "color: #059669; font-size: 12px; font-weight: bold;"
-            "padding: 4px 8px; background: #d1fae5; border-radius: 5px;"
-        )
+        self._cash_status_label.setStyleSheet(get_cash_status_badge_stylesheet())
         self._cash_status_label.setVisible(False)
         _corner_layout.addWidget(self._cash_status_label)
 
         # Botón para abrir caja (visible solo cuando NO hay caja abierta)
         self._open_cash_btn = _QPushButton("Abrir caja")
         self._open_cash_btn.clicked.connect(self._on_open_cash_clicked)
-        self._open_cash_btn.setStyleSheet(
-            "QPushButton { padding: 4px 12px; border-radius: 5px;"
-            "background: #ca8a04; color: white; border: none; font-size: 12px; }"
-            "QPushButton:hover { background: #a16207; }"
-        )
+        self._open_cash_btn.setStyleSheet(get_btn_warning_stylesheet())
         _corner_layout.addWidget(self._open_cash_btn)
 
         self._cash_close_btn = _QPushButton("Cierre de caja")
         self._cash_close_btn.clicked.connect(self._on_cash_close)
-        self._cash_close_btn.setStyleSheet(
-            "QPushButton { padding: 4px 12px; border-radius: 5px;"
-            "background: #0f766e; color: white; border: none; font-size: 12px; }"
-            "QPushButton:hover { background: #0d9488; }"
-        )
+        self._cash_close_btn.setStyleSheet(get_btn_corner_teal_stylesheet())
         _corner_layout.addWidget(self._cash_close_btn)
 
         self._admin_btn = _QPushButton("🔒 Administrador")
@@ -550,25 +549,21 @@ class MainWindow(QMainWindow):
 
     def _lock_admin_tabs(self) -> None:
         """Oculta las pestañas de administrador y muestra el botón de acceso bloqueado."""
+        from src.infrastructure.ui.theme import get_btn_corner_secondary_stylesheet
+
         for index in self._ADMIN_TAB_INDICES:
             self._tab_widget.setTabVisible(index, False)
         self._admin_btn.setText("🔒 Administrador")
-        self._admin_btn.setStyleSheet(
-            "QPushButton { padding: 4px 12px; border-radius: 5px;"
-            "background: #e2e8f0; color: #475569; border: none; font-size: 12px; }"
-            "QPushButton:hover { background: #cbd5e1; }"
-        )
+        self._admin_btn.setStyleSheet(get_btn_corner_secondary_stylesheet())
 
     def _unlock_admin_tabs(self) -> None:
         """Muestra las pestañas de administrador y actualiza el botón a desbloqueado."""
+        from src.infrastructure.ui.theme import get_btn_corner_primary_stylesheet
+
         for index in self._ADMIN_TAB_INDICES:
             self._tab_widget.setTabVisible(index, True)
         self._admin_btn.setText("✕ Ocultar panel")
-        self._admin_btn.setStyleSheet(
-            "QPushButton { padding: 4px 12px; border-radius: 5px;"
-            "background: #4f46e5; color: white; border: none; font-size: 12px; }"
-            "QPushButton:hover { background: #4338ca; }"
-        )
+        self._admin_btn.setStyleSheet(get_btn_corner_primary_stylesheet())
 
     def _setup_shortcuts(self) -> None:
         """Registra los atajos de teclado globales F1-F12 y Escape."""

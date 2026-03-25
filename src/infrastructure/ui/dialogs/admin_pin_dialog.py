@@ -31,6 +31,8 @@ class AdminPinDialog(QDialog):
         self.setMinimumWidth(320)
         self.setWindowFlags(Qt.Dialog | Qt.WindowCloseButtonHint)
         self._pin: str = ""
+        from src.infrastructure.ui.theme import get_dialog_stylesheet
+        self.setStyleSheet(get_dialog_stylesheet())
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -39,6 +41,14 @@ class AdminPinDialog(QDialog):
         root.setContentsMargins(28, 24, 28, 20)
         root.setSpacing(14)
 
+        from src.infrastructure.ui.theme import (
+            DANGER_COLOR,
+            TEXT_SECONDARY_COLOR,
+            get_btn_primary_stylesheet,
+            get_btn_secondary_stylesheet,
+            get_pin_input_stylesheet,
+        )
+
         icon_label = QLabel("🔒")
         icon_label.setAlignment(Qt.AlignCenter)
         icon_label.setStyleSheet("font-size: 28px;")
@@ -46,7 +56,7 @@ class AdminPinDialog(QDialog):
 
         hint = QLabel("Ingresá el PIN de administrador")
         hint.setAlignment(Qt.AlignCenter)
-        hint.setStyleSheet("font-size: 13px; color: #475569;")
+        hint.setStyleSheet(f"font-size: 13px; color: {TEXT_SECONDARY_COLOR};")
         root.addWidget(hint)
 
         self._pin_input = QLineEdit()
@@ -54,35 +64,24 @@ class AdminPinDialog(QDialog):
         self._pin_input.setAlignment(Qt.AlignCenter)
         self._pin_input.setMaxLength(8)
         self._pin_input.setPlaceholderText("••••")
-        self._pin_input.setStyleSheet(
-            "font-size: 22px; letter-spacing: 6px; padding: 10px;"
-            "border: 2px solid #4f46e5; border-radius: 8px;"
-        )
+        self._pin_input.setStyleSheet(get_pin_input_stylesheet())
         self._pin_input.returnPressed.connect(self._on_confirm)
         root.addWidget(self._pin_input)
 
         self._error_label = QLabel()
         self._error_label.setAlignment(Qt.AlignCenter)
-        self._error_label.setStyleSheet("color: #dc2626; font-size: 12px;")
+        self._error_label.setStyleSheet(f"color: {DANGER_COLOR}; font-size: 12px;")
         self._error_label.setVisible(False)
         root.addWidget(self._error_label)
 
         btn_row = QHBoxLayout()
         btn_cancel = QPushButton("Cancelar")
-        btn_cancel.setStyleSheet(
-            "QPushButton { padding: 8px 18px; border-radius: 6px;"
-            "background: #e2e8f0; color: #334155; border: none; }"
-            "QPushButton:hover { background: #cbd5e1; }"
-        )
+        btn_cancel.setStyleSheet(get_btn_secondary_stylesheet())
         btn_cancel.clicked.connect(self.reject)
 
         btn_confirm = QPushButton("Confirmar")
         btn_confirm.setDefault(True)
-        btn_confirm.setStyleSheet(
-            "QPushButton { padding: 8px 18px; border-radius: 6px;"
-            "background: #4f46e5; color: white; font-weight: bold; border: none; }"
-            "QPushButton:hover { background: #4338ca; }"
-        )
+        btn_confirm.setStyleSheet(get_btn_primary_stylesheet())
         btn_confirm.clicked.connect(self._on_confirm)
 
         btn_row.addWidget(btn_cancel)

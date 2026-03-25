@@ -116,14 +116,18 @@ class SalesHistoryView(QWidget):
 
     def show_error(self, message: str) -> None:
         """Muestra mensaje de error en el label de estado."""
+        from src.infrastructure.ui.theme import DANGER_COLOR
+
         self._lbl_status.setText(f"⚠ {message}")
-        self._lbl_status.setStyleSheet("color: #dc2626;")
+        self._lbl_status.setStyleSheet(f"color: {DANGER_COLOR};")
 
     def show_loading(self, loading: bool) -> None:
         """Muestra u oculta el indicador de carga."""
+        from src.infrastructure.ui.theme import TEXT_SECONDARY_COLOR
+
         self._btn_search.setEnabled(not loading)
         self._lbl_status.setText("Cargando..." if loading else "")
-        self._lbl_status.setStyleSheet("color: #6b7280;")
+        self._lbl_status.setStyleSheet(f"color: {TEXT_SECONDARY_COLOR};")
 
     # ------------------------------------------------------------------
     # Handlers Qt
@@ -198,7 +202,9 @@ class SalesHistoryView(QWidget):
 
         h_filters.addStretch()
         self._lbl_daily_total = QLabel("Total del día: $0,00")
-        self._lbl_daily_total.setStyleSheet("font-weight: bold; font-size: 13px;")
+        self._lbl_daily_total.setStyleSheet(
+            "font-weight: bold; font-size: 13px;"
+        )
         h_filters.addWidget(self._lbl_daily_total)
         root.addWidget(grp_filters)
 
@@ -238,8 +244,10 @@ class SalesHistoryView(QWidget):
         root.addWidget(self._grp_detail, stretch=1)
 
         # --- Estado ------------------------------------------------
+        from src.infrastructure.ui.theme import TEXT_SECONDARY_COLOR
+
         self._lbl_status = QLabel("")
-        self._lbl_status.setStyleSheet("color: #6b7280;")
+        self._lbl_status.setStyleSheet(f"color: {TEXT_SECONDARY_COLOR};")
         root.addWidget(self._lbl_status)
 
     def _cleanup_worker(self, worker) -> None:

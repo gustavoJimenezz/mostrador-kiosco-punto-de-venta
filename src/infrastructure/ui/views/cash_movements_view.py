@@ -81,13 +81,15 @@ class CashMovementsView(QWidget):
         Args:
             cash_close: Arqueo de caja activo.
         """
+        from src.infrastructure.ui.theme import SUCCESS_COLOR
+
         self._active_cash_close_id = cash_close.id
         hora = cash_close.opened_at.strftime("%H:%M")
         self._lbl_session.setText(
             f"✓ Sesión abierta desde las {hora}  "
             f"(monto inicial: ${cash_close.opening_amount:,.2f})"
         )
-        self._lbl_session.setStyleSheet("color: #059669; font-weight: bold;")
+        self._lbl_session.setStyleSheet(f"color: {SUCCESS_COLOR}; font-weight: bold;")
         self._btn_income.setEnabled(True)
         self._btn_expense.setEnabled(True)
         self._input_desc.setEnabled(True)
@@ -95,11 +97,13 @@ class CashMovementsView(QWidget):
 
     def show_session_closed(self) -> None:
         """Deshabilita el formulario al no haber sesión activa."""
+        from src.infrastructure.ui.theme import TEXT_SECONDARY_COLOR
+
         self._active_cash_close_id = None
         self._lbl_session.setText(
             "No hay caja abierta. Abrila desde el botón de la barra superior."
         )
-        self._lbl_session.setStyleSheet("color: #6b7280;")
+        self._lbl_session.setStyleSheet(f"color: {TEXT_SECONDARY_COLOR};")
         self._btn_income.setEnabled(False)
         self._btn_expense.setEnabled(False)
         self._input_desc.setEnabled(False)
@@ -111,13 +115,15 @@ class CashMovementsView(QWidget):
         Args:
             movements: Lista completa de movimientos del arqueo activo.
         """
+        from src.infrastructure.ui.theme import DANGER_COLOR, SUCCESS_COLOR
+
         self._table.setRowCount(0)
         total = Decimal("0")
         for mov in movements:
             row = self._table.rowCount()
             self._table.insertRow(row)
             hora = mov.created_at.strftime("%H:%M")
-            color = "#059669" if mov.is_income else "#dc2626"
+            color = SUCCESS_COLOR if mov.is_income else DANGER_COLOR
             signo = "+" if mov.is_income else "-"
             monto_str = f"{signo}${abs(mov.amount):,.2f}"
             total += mov.amount
@@ -139,8 +145,10 @@ class CashMovementsView(QWidget):
         Args:
             message: Texto del error.
         """
+        from src.infrastructure.ui.theme import DANGER_COLOR
+
         self._status_label.setText(f"⚠ {message}")
-        self._status_label.setStyleSheet("color: #dc2626;")
+        self._status_label.setStyleSheet(f"color: {DANGER_COLOR};")
 
     def show_success(self, message: str) -> None:
         """Muestra un mensaje de éxito en el label de estado.
@@ -148,8 +156,10 @@ class CashMovementsView(QWidget):
         Args:
             message: Texto del mensaje.
         """
+        from src.infrastructure.ui.theme import SUCCESS_COLOR
+
         self._status_label.setText(f"✓ {message}")
-        self._status_label.setStyleSheet("color: #059669;")
+        self._status_label.setStyleSheet(f"color: {SUCCESS_COLOR};")
 
     # ------------------------------------------------------------------
     # Handlers Qt
@@ -203,10 +213,12 @@ class CashMovementsView(QWidget):
         # --- Sesión ------------------------------------------------
         grp_session = QGroupBox("Sesión activa")
         v_session = QVBoxLayout(grp_session)
+        from src.infrastructure.ui.theme import TEXT_SECONDARY_COLOR
+
         self._lbl_session = QLabel(
             "No hay caja abierta. Abrila desde el botón de la barra superior."
         )
-        self._lbl_session.setStyleSheet("color: #6b7280;")
+        self._lbl_session.setStyleSheet(f"color: {TEXT_SECONDARY_COLOR};")
         v_session.addWidget(self._lbl_session)
         root.addWidget(grp_session)
 
@@ -223,9 +235,11 @@ class CashMovementsView(QWidget):
         self._table.verticalHeader().setVisible(False)
         v_list.addWidget(self._table, stretch=1)
 
+        from src.infrastructure.ui.theme import TEXT_SECONDARY_COLOR
+
         self._lbl_total = QLabel("Total neto: $0,00")
         self._lbl_total.setStyleSheet(
-            "font-family: monospace; font-weight: bold; font-size: 14px; color: #6b7280;"
+            f"font-family: monospace; font-weight: bold; font-size: 14px; color: {TEXT_SECONDARY_COLOR};"
         )
         self._lbl_total.setAlignment(Qt.AlignmentFlag.AlignRight)
         v_list.addWidget(self._lbl_total)
@@ -248,24 +262,16 @@ class CashMovementsView(QWidget):
         self._spin_amount.setEnabled(False)
         row_form.addWidget(self._spin_amount, stretch=1)
 
+        from src.infrastructure.ui.theme import get_btn_danger_stylesheet, get_btn_success_stylesheet
+
         self._btn_income = QPushButton("+ Ingreso")
-        self._btn_income.setStyleSheet(
-            "QPushButton { background-color: #059669; color: white; padding: 6px 14px; "
-            "border-radius: 4px; border: none; }"
-            "QPushButton:hover { background-color: #047857; }"
-            "QPushButton:disabled { background-color: #a7f3d0; color: #6b7280; }"
-        )
+        self._btn_income.setStyleSheet(get_btn_success_stylesheet())
         self._btn_income.setEnabled(False)
         self._btn_income.clicked.connect(lambda: self._on_add_movement(is_income=True))
         row_form.addWidget(self._btn_income)
 
         self._btn_expense = QPushButton("− Egreso")
-        self._btn_expense.setStyleSheet(
-            "QPushButton { background-color: #dc2626; color: white; padding: 6px 14px; "
-            "border-radius: 4px; border: none; }"
-            "QPushButton:hover { background-color: #b91c1c; }"
-            "QPushButton:disabled { background-color: #fecaca; color: #6b7280; }"
-        )
+        self._btn_expense.setStyleSheet(get_btn_danger_stylesheet())
         self._btn_expense.setEnabled(False)
         self._btn_expense.clicked.connect(lambda: self._on_add_movement(is_income=False))
         row_form.addWidget(self._btn_expense)
@@ -286,15 +292,17 @@ class CashMovementsView(QWidget):
         Args:
             total: Suma neta de movimientos.
         """
+        from src.infrastructure.ui.theme import DANGER_COLOR, SUCCESS_COLOR, TEXT_SECONDARY_COLOR
+
         if total > Decimal("0"):
             texto = f"Total neto: +${total:,.2f}"
-            color = "#059669"
+            color = SUCCESS_COLOR
         elif total < Decimal("0"):
             texto = f"Total neto: -${abs(total):,.2f}"
-            color = "#dc2626"
+            color = DANGER_COLOR
         else:
             texto = "Total neto: $0,00"
-            color = "#6b7280"
+            color = TEXT_SECONDARY_COLOR
         self._lbl_total.setText(texto)
         self._lbl_total.setStyleSheet(
             f"font-family: monospace; font-weight: bold; font-size: 14px; color: {color};"

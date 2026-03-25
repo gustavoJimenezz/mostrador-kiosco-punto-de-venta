@@ -42,10 +42,12 @@ class CashCloseDialog(QDialog):
         layout.setContentsMargins(0, 0, 0, 12)
         layout.addWidget(self._cash_close_view)
 
+        from src.infrastructure.ui.theme import get_btn_secondary_stylesheet
+
         row = QHBoxLayout()
         row.addStretch()
         btn_close = QPushButton("Cerrar")
-        btn_close.setStyleSheet("padding: 6px 20px;")
+        btn_close.setStyleSheet(get_btn_secondary_stylesheet())
         btn_close.clicked.connect(self.close)
         row.addWidget(btn_close)
         row.setContentsMargins(0, 0, 12, 0)

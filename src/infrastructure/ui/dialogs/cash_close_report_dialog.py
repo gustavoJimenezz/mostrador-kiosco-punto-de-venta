@@ -122,13 +122,15 @@ class CashCloseReportDialog(QDialog):
 
     def _add_period_label(self, layout: QVBoxLayout) -> None:
         """Agrega la etiqueta con el período de apertura y hora de cierre."""
-        apertura = self._cash_close.opened_at.strftime("%d/%m/%Y  %H:%M")
-        cierre_hora = self._report_data.get("closing_amount")  # marker only
         from datetime import datetime
+
+        from src.infrastructure.ui.theme import TEXT_SECONDARY_COLOR
+
+        apertura = self._cash_close.opened_at.strftime("%d/%m/%Y  %H:%M")
         cierre = datetime.now().strftime("%d/%m/%Y  %H:%M")
         lbl = QLabel(f"Período:  {apertura}  →  {cierre}")
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl.setStyleSheet("color: #6b7280; font-size: 11px;")
+        lbl.setStyleSheet(f"color: {TEXT_SECONDARY_COLOR}; font-size: 11px;")
         layout.addWidget(lbl)
 
     def _build_profit_section(self, layout: QVBoxLayout) -> None:
@@ -145,10 +147,12 @@ class CashCloseReportDialog(QDialog):
         )
         layout.addWidget(section_lbl)
 
+        from src.infrastructure.ui.theme import DANGER_COLOR, SUCCESS_COLOR
+
         # Tarjeta destacada de ganancia
         card = QFrame()
         card.setFrameShape(QFrame.Shape.StyledPanel)
-        card_color = "#059669" if gross_profit >= Decimal("0") else "#dc2626"
+        card_color = SUCCESS_COLOR if gross_profit >= Decimal("0") else DANGER_COLOR
         card.setStyleSheet(
             f"background-color: {card_color}10; border: 2px solid {card_color}; border-radius: 8px;"
         )
@@ -171,6 +175,8 @@ class CashCloseReportDialog(QDialog):
         layout.addWidget(card)
 
         # Tabla de detalle
+        from src.infrastructure.ui.theme import TEXT_HINT_COLOR
+
         rows = [
             ("Total Facturado (ventas)", f"${revenue:,.2f}", None),
             ("(-) Costo de Mercadería Vendida *", f"${cost:,.2f}", None),
@@ -181,7 +187,7 @@ class CashCloseReportDialog(QDialog):
         layout.addWidget(self._make_table(rows))
 
         note = QLabel("* Costo calculado al valor actual de cada producto (estimación).")
-        note.setStyleSheet("color: #9ca3af; font-size: 10px;")
+        note.setStyleSheet(f"color: {TEXT_HINT_COLOR}; font-size: 10px;")
         layout.addWidget(note)
 
     def _build_sales_section(self, layout: QVBoxLayout) -> None:
@@ -193,11 +199,13 @@ class CashCloseReportDialog(QDialog):
         transfer = totals.get("TRANSFERENCIA", Decimal("0"))
         total = cash + debit + transfer
 
+        from src.infrastructure.ui.theme import INFO_COLOR
+
         rows = [
             ("Efectivo", f"${cash:,.2f}", None),
             ("Débito", f"${debit:,.2f}", None),
             ("Transferencia", f"${transfer:,.2f}", None),
-            ("TOTAL VENTAS", f"${total:,.2f}", "#1d4ed8"),
+            ("TOTAL VENTAS", f"${total:,.2f}", INFO_COLOR),
         ]
         layout.addWidget(self._make_table(rows, bold_last=True))
 
@@ -215,12 +223,14 @@ class CashCloseReportDialog(QDialog):
         theoretical_cash = opening + cash_sales + net_movements
         difference = closing_amount - theoretical_cash
 
+        from src.infrastructure.ui.theme import DANGER_COLOR, INFO_COLOR, SUCCESS_COLOR
+
         if difference >= Decimal("0"):
             diff_str = f"${difference:,.2f}  (Sobrante)"
-            diff_color = "#059669"
+            diff_color = SUCCESS_COLOR
         else:
             diff_str = f"${abs(difference):,.2f}  (Faltante)"
-            diff_color = "#dc2626"
+            diff_color = DANGER_COLOR
 
         mov_sign = "+" if net_movements >= Decimal("0") else ""
         rows = [
@@ -231,7 +241,7 @@ class CashCloseReportDialog(QDialog):
                 f"{mov_sign}${net_movements:,.2f}",
                 None,
             ),
-            ("(=) Saldo Teórico en Caja", f"${theoretical_cash:,.2f}", "#1d4ed8"),
+            ("(=) Saldo Teórico en Caja", f"${theoretical_cash:,.2f}", INFO_COLOR),
             ("(×) Monto Contado (Real)", f"${closing_amount:,.2f}", None),
             ("Diferencia de Caja", diff_str, diff_color),
         ]
@@ -243,8 +253,10 @@ class CashCloseReportDialog(QDialog):
         movements: list[CashMovement] = self._report_data.get("movements", [])
 
         if not movements:
+            from src.infrastructure.ui.theme import TEXT_HINT_COLOR
+
             lbl = QLabel("No se registraron movimientos manuales en este período.")
-            lbl.setStyleSheet("color: #9ca3af; font-style: italic;")
+            lbl.setStyleSheet(f"color: {TEXT_HINT_COLOR}; font-style: italic;")
             layout.addWidget(lbl)
             return
 
@@ -256,11 +268,13 @@ class CashCloseReportDialog(QDialog):
         table.setFixedHeight(min(140, 34 + len(movements) * 30))
         table.verticalHeader().setVisible(False)
 
+        from src.infrastructure.ui.theme import DANGER_COLOR, SUCCESS_COLOR
+
         for i, mov in enumerate(movements):
             hora = mov.created_at.strftime("%H:%M")
             signo = "+" if mov.is_income else "−"
             monto_str = f"{signo}${abs(mov.amount):,.2f}"
-            color = QColor("#059669") if mov.is_income else QColor("#dc2626")
+            color = QColor(SUCCESS_COLOR) if mov.is_income else QColor(DANGER_COLOR)
 
             table.setItem(i, 0, QTableWidgetItem(hora))
             table.setItem(i, 1, QTableWidgetItem(mov.description))
@@ -273,26 +287,25 @@ class CashCloseReportDialog(QDialog):
         # Subtotal movimientos
         net = sum((m.amount for m in movements), Decimal("0"))
         sign = "+" if net >= Decimal("0") else ""
+        from src.infrastructure.ui.theme import TEXT_PRIMARY_COLOR
+
         sub = QLabel(f"Neto movimientos manuales: {sign}${net:,.2f}")
-        sub.setStyleSheet("color: #374151; font-size: 11px;")
+        sub.setStyleSheet(f"color: {TEXT_PRIMARY_COLOR}; font-size: 11px;")
         sub.setAlignment(Qt.AlignmentFlag.AlignRight)
         layout.addWidget(sub)
 
     def _build_buttons(self, layout: QVBoxLayout) -> None:
         """Agrega los botones de acción al pie del diálogo."""
+        from src.infrastructure.ui.theme import get_btn_primary_stylesheet, get_btn_secondary_stylesheet
+
         row = QHBoxLayout()
 
         btn_cancel = QPushButton("Cancelar")
-        btn_cancel.setStyleSheet(
-            "padding: 8px 24px; background-color: #e5e7eb; border-radius: 4px;"
-        )
+        btn_cancel.setStyleSheet(get_btn_secondary_stylesheet())
         btn_cancel.clicked.connect(self.reject)
 
         btn_confirm = QPushButton("Confirmar y cerrar caja")
-        btn_confirm.setStyleSheet(
-            "padding: 8px 24px; background-color: #4f46e5; color: white;"
-            " font-weight: bold; border-radius: 4px;"
-        )
+        btn_confirm.setStyleSheet(get_btn_primary_stylesheet())
         btn_confirm.clicked.connect(self.accept)
         btn_confirm.setDefault(True)
 
@@ -308,20 +321,24 @@ class CashCloseReportDialog(QDialog):
     @staticmethod
     def _make_section_title(text: str) -> QLabel:
         """Crea un label de título de sección."""
+        from src.infrastructure.ui.theme import TEXT_PRIMARY_COLOR
+
         lbl = QLabel(text)
         font = QFont()
         font.setBold(True)
         font.setPointSize(10)
         lbl.setFont(font)
-        lbl.setStyleSheet("color: #111827;")
+        lbl.setStyleSheet(f"color: {TEXT_PRIMARY_COLOR};")
         return lbl
 
     @staticmethod
     def _make_separator() -> QFrame:
         """Crea una línea horizontal separadora."""
+        from src.infrastructure.ui.theme import PALETTE
+
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
-        line.setStyleSheet("color: #e5e7eb;")
+        line.setStyleSheet(f"color: {PALETTE.border};")
         return line
 
     @staticmethod

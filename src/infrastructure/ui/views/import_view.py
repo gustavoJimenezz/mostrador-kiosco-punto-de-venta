@@ -209,8 +209,10 @@ class ImportView(QWidget):
             message: Texto a mostrar (puede ser multiline con \\n).
             is_error: Si True, texto en rojo; si False, texto en gris oscuro.
         """
+        from src.infrastructure.ui.theme import DANGER_COLOR, TEXT_PRIMARY_COLOR
+
         self._status_label.setText(message)
-        color = "#dc2626" if is_error else "#374151"
+        color = DANGER_COLOR if is_error else TEXT_PRIMARY_COLOR
         self._status_label.setStyleSheet(f"color: {color};")
 
     def show_progress(self, visible: bool, value: int = -1) -> None:
@@ -339,6 +341,8 @@ class ImportView(QWidget):
         root.addLayout(file_row)
 
         # --- 1b. Texto informativo de formato ---
+        from src.infrastructure.ui.theme import PALETTE
+
         info_label = QLabel(
             "<b>Formato aceptado:</b>"
             "<ul style='margin:4px 0 0 0; padding-left:18px;'>"
@@ -355,8 +359,8 @@ class ImportView(QWidget):
         )
         info_label.setWordWrap(True)
         info_label.setStyleSheet(
-            "background:#f0f9ff; border:1px solid #bae6fd; border-radius:6px;"
-            "padding:8px 10px; color:#0c4a6e; font-size:12px;"
+            f"background:{PALETTE.info_surface}; border:1px solid {PALETTE.info_border};"
+            f" border-radius:6px; padding:8px 10px; color:{PALETTE.info_text}; font-size:12px;"
         )
         root.addWidget(info_label)
 
@@ -364,7 +368,8 @@ class ImportView(QWidget):
         self._banner_label = QLabel("Seleccione un archivo para comenzar.")
         self._banner_label.setWordWrap(True)
         self._banner_label.setStyleSheet(
-            "background:#f3f4f6; border-radius:6px; padding:8px 10px; color:#374151;"
+            f"background:{PALETTE.surface}; border-radius:6px; padding:8px 10px;"
+            f" color:{PALETTE.text_primary};"
         )
         root.addWidget(self._banner_label)
 
@@ -473,23 +478,25 @@ class ImportView(QWidget):
         ]
         has_duplicates = len(assigned_cols) != len(set(assigned_cols))
 
+        from src.infrastructure.ui.theme import PALETTE
+
         if has_duplicates:
             status = MappingStatus(
                 message="Error: la misma columna del archivo está asignada a más de un campo destino.",
-                bg_color="#fee2e2",
+                bg_color=PALETTE.danger_light,
                 valid=False,
             )
         elif missing:
             campos = ", ".join(f"'{f}'" for f in missing)
             status = MappingStatus(
                 message=f"Campos requeridos sin asignar: {campos}.",
-                bg_color="#fef9c3",
+                bg_color=PALETTE.warning_light,
                 valid=False,
             )
         else:
             status = MappingStatus(
                 message="Mapeo completo. Todos los campos requeridos están asignados.",
-                bg_color="#dcfce7",
+                bg_color=PALETTE.success_light,
                 valid=True,
             )
 

@@ -44,6 +44,9 @@ class LoginWindow(QDialog):
         self.setMinimumSize(420, 460)
         self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint)
 
+        from src.infrastructure.ui.theme import get_dialog_stylesheet
+        self.setStyleSheet(get_dialog_stylesheet())
+
         self._build_ui()
         self._load_users()
 
@@ -62,10 +65,19 @@ class LoginWindow(QDialog):
         logo_label.setAlignment(Qt.AlignCenter)
         root.addWidget(logo_label)
 
+        from src.infrastructure.ui.theme import (
+            DANGER_COLOR,
+            TEXT_SECONDARY_COLOR,
+            get_btn_primary_stylesheet,
+            get_btn_secondary_stylesheet,
+            get_pin_input_stylesheet,
+            PALETTE,
+        )
+
         title = QLabel("Selecciona tu usuario")
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet(
-            "font-size: 20px; font-weight: bold; color: #ffffff;"
+            f"font-size: 20px; font-weight: bold; color: {PALETTE.text_primary};"
         )
         root.addWidget(title)
 
@@ -78,9 +90,6 @@ class LoginWindow(QDialog):
         # Sección de PIN (oculta hasta seleccionar un usuario)
         self._pin_frame = QFrame()
         self._pin_frame.setFrameShape(QFrame.StyledPanel)
-        self._pin_frame.setStyleSheet(
-            "QFrame { background: #f8fafc; border-radius: 8px; }"
-        )
         pin_layout = QVBoxLayout(self._pin_frame)
         pin_layout.setContentsMargins(20, 16, 20, 16)
         pin_layout.setSpacing(10)
@@ -88,13 +97,13 @@ class LoginWindow(QDialog):
         self._user_label = QLabel()
         self._user_label.setAlignment(Qt.AlignCenter)
         self._user_label.setStyleSheet(
-            "font-size: 15px; font-weight: bold; color: #4f46e5;"
+            f"font-size: 15px; font-weight: bold; color: {PALETTE.primary};"
         )
         pin_layout.addWidget(self._user_label)
 
         pin_hint = QLabel("Ingresá tu PIN")
         pin_hint.setAlignment(Qt.AlignCenter)
-        pin_hint.setStyleSheet("color: #64748b; font-size: 13px;")
+        pin_hint.setStyleSheet(f"color: {TEXT_SECONDARY_COLOR}; font-size: 13px;")
         pin_layout.addWidget(pin_hint)
 
         self._pin_input = QLineEdit()
@@ -103,30 +112,21 @@ class LoginWindow(QDialog):
         self._pin_input.setMaxLength(8)
         self._pin_input.setPlaceholderText("••••")
         self._pin_input.setStyleSheet(
-            "font-size: 24px; letter-spacing: 8px; padding: 10px;"
-            "border: 2px solid #4f46e5; border-radius: 8px;"
-            "background: white; color: #1e293b;"
+            f"font-size: 24px; letter-spacing: 8px; padding: 10px;"
+            f" border: 2px solid {PALETTE.primary}; border-radius: 8px;"
+            f" background: {PALETTE.surface_card}; color: {PALETTE.text_primary};"
         )
         self._pin_input.returnPressed.connect(self._on_confirm)
         pin_layout.addWidget(self._pin_input)
 
         btn_row = QHBoxLayout()
         btn_back = QPushButton("← Volver")
-        btn_back.setStyleSheet(
-            "QPushButton { padding: 8px 18px; border-radius: 6px;"
-            "background: #e2e8f0; color: #334155; font-size: 13px; border: none; }"
-            "QPushButton:hover { background: #cbd5e1; }"
-        )
+        btn_back.setStyleSheet(get_btn_secondary_stylesheet())
         btn_back.clicked.connect(self._on_back)
 
         btn_confirm = QPushButton("Ingresar →")
         btn_confirm.setDefault(True)
-        btn_confirm.setStyleSheet(
-            "QPushButton { padding: 8px 18px; border-radius: 6px;"
-            "background: #4f46e5; color: white; font-size: 13px;"
-            "font-weight: bold; border: none; }"
-            "QPushButton:hover { background: #4338ca; }"
-        )
+        btn_confirm.setStyleSheet(get_btn_primary_stylesheet())
         btn_confirm.clicked.connect(self._on_confirm)
 
         btn_row.addWidget(btn_back)
@@ -140,7 +140,7 @@ class LoginWindow(QDialog):
         # Mensaje de error (oculto por defecto)
         self._error_label = QLabel()
         self._error_label.setAlignment(Qt.AlignCenter)
-        self._error_label.setStyleSheet("color: #dc2626; font-size: 12px;")
+        self._error_label.setStyleSheet(f"color: {DANGER_COLOR}; font-size: 12px;")
         self._error_label.setVisible(False)
         root.addWidget(self._error_label)
 
@@ -153,14 +153,16 @@ class LoginWindow(QDialog):
             if widget:
                 widget.deleteLater()
 
+        from src.infrastructure.ui.theme import PALETTE
+
         users = self._presenter.get_active_users()
         for user in users:
             btn = QPushButton(user.name)
             btn.setMinimumHeight(46)
             btn.setStyleSheet(
-                "QPushButton { background: #4f46e5; color: white; font-size: 14px;"
-                "font-weight: bold; border-radius: 8px; padding: 8px; border: none; }"
-                "QPushButton:hover { background: #4338ca; }"
+                f"QPushButton {{ background: {PALETTE.primary}; color: {PALETTE.text_on_primary};"
+                f" font-size: 14px; font-weight: bold; border-radius: 8px; padding: 8px; border: none; }}"
+                f"QPushButton:hover {{ background: {PALETTE.primary_hover}; }}"
             )
             btn.clicked.connect(lambda checked, u=user: self._on_user_selected(u))
             self._users_layout.addWidget(btn)

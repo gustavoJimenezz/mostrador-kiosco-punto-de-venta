@@ -118,8 +118,10 @@ class StockEditView(QWidget):
             message: Texto a mostrar.
             is_error: Si True, texto en rojo; si False, en gris oscuro.
         """
+        from src.infrastructure.ui.theme import DANGER_COLOR, TEXT_PRIMARY_COLOR
+
         self._status_label.setText(message)
-        color = "#dc2626" if is_error else "#374151"
+        color = DANGER_COLOR if is_error else TEXT_PRIMARY_COLOR
         self._status_label.setStyleSheet(f"color: {color};")
 
     def add_or_update_edited_row(self, product: Product) -> None:
