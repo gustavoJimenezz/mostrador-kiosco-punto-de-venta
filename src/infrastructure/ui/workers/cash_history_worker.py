@@ -21,7 +21,7 @@ class LoadCashHistoryWorker(QThread):
         end: Fecha de fin (inclusivo).
     """
 
-    closes_loaded = Signal(list)
+    closes_loaded = Signal(dict)
     error_occurred = Signal(str)
 
     def __init__(
@@ -48,7 +48,11 @@ class LoadCashHistoryWorker(QThread):
             repo = MariadbCashRepository(session)
             uc = ListCashCloses(repo)
             closes = uc.execute(self._start, self._end)
-            self.closes_loaded.emit(closes)
+            close_ids = [c.id for c in closes if c.id is not None]
+            movements_totals = repo.get_movements_totals_by_close_ids(close_ids)
+            self.closes_loaded.emit(
+                {"closes": closes, "movements_totals": movements_totals}
+            )
         except Exception as exc:
             self.error_occurred.emit(str(exc))
         finally:

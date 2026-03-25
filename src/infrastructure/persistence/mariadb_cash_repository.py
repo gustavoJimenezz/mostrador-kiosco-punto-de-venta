@@ -17,6 +17,8 @@ from src.domain.models.cash_close import CashClose
 from src.domain.models.cash_movement import CashMovement
 from src.infrastructure.persistence.tables import (
     cash_movements_table,
+    products_table,
+    sale_items_table,
     sales_table,
 )
 
@@ -209,6 +211,90 @@ class MariadbCashRepository:
         ).fetchall()
 
         return {row.payment_method: Decimal(str(row.total)) for row in rows}
+
+    def get_profit_data_for_session(self, cash_close_id: int) -> dict:
+        """Calcula ganancia bruta estimada para un arqueo de caja.
+
+        Realiza JOIN entre sales → sale_items → products filtrando por
+        ``cash_close_id``. El costo se toma de ``products.current_cost``
+        (valor actual, aproximación aceptable para kioscos).
+
+        Args:
+            cash_close_id: ID del arqueo de caja a analizar.
+
+        Returns:
+            Diccionario con claves:
+            ``total_revenue``, ``total_cost_estimate``, ``gross_profit``,
+            ``margin_percent``, ``total_sales_count``.
+        """
+        from decimal import ROUND_HALF_UP
+        from sqlalchemy import func, select
+
+        row = self._session.execute(
+            select(
+                func.coalesce(
+                    func.sum(sale_items_table.c.price_at_sale * sale_items_table.c.quantity),
+                    0,
+                ).label("total_revenue"),
+                func.coalesce(
+                    func.sum(products_table.c.current_cost * sale_items_table.c.quantity),
+                    0,
+                ).label("total_cost"),
+                func.count(func.distinct(sales_table.c.id)).label("total_sales_count"),
+            )
+            .select_from(sale_items_table)
+            .join(sales_table, sale_items_table.c.sale_id == sales_table.c.id)
+            .join(products_table, sale_items_table.c.product_id == products_table.c.id)
+            .where(sales_table.c.cash_close_id == cash_close_id)
+        ).fetchone()
+
+        revenue = Decimal(str(row.total_revenue))
+        cost = Decimal(str(row.total_cost))
+        profit = revenue - cost
+        if revenue > Decimal("0"):
+            margin = (profit / revenue * 100).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+        else:
+            margin = Decimal("0.00")
+
+        return {
+            "total_revenue": revenue,
+            "total_cost_estimate": cost,
+            "gross_profit": profit,
+            "margin_percent": margin,
+            "total_sales_count": row.total_sales_count,
+        }
+
+    def get_movements_totals_by_close_ids(
+        self, close_ids: list[int]
+    ) -> dict[int, Decimal]:
+        """Retorna la suma neta de movimientos manuales para cada arqueo indicado.
+
+        Realiza una sola query agrupada para evitar N+1 al cargar el historial.
+
+        Args:
+            close_ids: Lista de IDs de arqueos a consultar.
+
+        Returns:
+            Diccionario ``{cash_close_id: suma_neta}``. Los arqueos sin
+            movimientos no aparecen (usar ``.get(id, Decimal("0"))``).
+        """
+        if not close_ids:
+            return {}
+
+        from sqlalchemy import func, select
+
+        rows = self._session.execute(
+            select(
+                cash_movements_table.c.cash_close_id,
+                func.sum(cash_movements_table.c.amount).label("total"),
+            )
+            .where(cash_movements_table.c.cash_close_id.in_(close_ids))
+            .group_by(cash_movements_table.c.cash_close_id)
+        ).fetchall()
+
+        return {row.cash_close_id: Decimal(str(row.total)) for row in rows}
 
     def get_sales_totals_for_date(self, day: date) -> dict[str, Decimal]:
         """Computa los totales de ventas del día agrupados por método de pago.

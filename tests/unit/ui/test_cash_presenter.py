@@ -12,7 +12,7 @@ from typing import Optional
 import pytest
 
 from src.domain.models.cash_close import CashClose
-from src.domain.models.cash_movement import CashMovement, MovementType
+from src.domain.models.cash_movement import CashMovement
 from src.infrastructure.ui.presenters.cash_presenter import CashPresenter
 
 
@@ -23,7 +23,7 @@ class FakeCashView:
         self.session_open: Optional[CashClose] = None
         self.session_closed_called: bool = False
         self.sales_summary: tuple = (Decimal("0"), Decimal("0"), Decimal("0"))
-        self.movements: list[CashMovement] = []
+        self.movements_total: Decimal = Decimal("0")
         self.close_result: Optional[Decimal] = None
         self.last_error: Optional[str] = None
         self.last_success: Optional[str] = None
@@ -39,11 +39,39 @@ class FakeCashView:
     def show_sales_summary(self, cash, debit, transfer) -> None:
         self.sales_summary = (cash, debit, transfer)
 
-    def show_movements(self, movements: list[CashMovement]) -> None:
-        self.movements = movements
+    def show_movements_total(self, total: Decimal) -> None:
+        self.movements_total = total
 
     def show_close_result(self, difference: Optional[Decimal]) -> None:
         self.close_result = difference
+
+    def show_error(self, message: str) -> None:
+        self.last_error = message
+
+    def show_success(self, message: str) -> None:
+        self.last_success = message
+
+
+class FakeCashMovementsView:
+    """Vista fake que implementa ICashMovementsView para tests."""
+
+    def __init__(self) -> None:
+        self.session_open: Optional[CashClose] = None
+        self.session_closed_called: bool = False
+        self.movements: list[CashMovement] = []
+        self.last_error: Optional[str] = None
+        self.last_success: Optional[str] = None
+
+    def show_session_open(self, cash_close: CashClose) -> None:
+        self.session_open = cash_close
+        self.session_closed_called = False
+
+    def show_session_closed(self) -> None:
+        self.session_open = None
+        self.session_closed_called = True
+
+    def show_movements(self, movements: list[CashMovement]) -> None:
+        self.movements = list(movements)
 
     def show_error(self, message: str) -> None:
         self.last_error = message
@@ -174,7 +202,27 @@ class TestCashPresenterCallbacks:
         assert view.session_closed_called
         assert "Sobrante" in (view.last_success or "")
 
-    def test_on_movement_added_appends_to_list(self):
+    def test_on_movement_added_updates_movements_view(self):
+        view = FakeCashView()
+        mov_view = FakeCashMovementsView()
+        presenter = CashPresenter(view)
+        presenter.set_movements_view(mov_view)
+        cc = _make_cash_close()
+        presenter.on_state_loaded({"cash_close": cc, "movements": [], "sales_totals": {}})
+
+        mov = CashMovement(
+            cash_close_id=1,
+            amount=Decimal("200.00"),
+            description="Test",
+            created_at=datetime.now(),
+            id=1,
+        )
+        presenter.on_movement_added(mov)
+
+        assert len(mov_view.movements) == 1
+        assert mov_view.movements[0] is mov
+
+    def test_on_movement_added_updates_total_in_close_view(self):
         view = FakeCashView()
         presenter = CashPresenter(view)
         cc = _make_cash_close()
@@ -183,12 +231,71 @@ class TestCashPresenterCallbacks:
         mov = CashMovement(
             cash_close_id=1,
             amount=Decimal("200.00"),
-            movement_type=MovementType.INCOME,
             description="Test",
             created_at=datetime.now(),
             id=1,
         )
         presenter.on_movement_added(mov)
 
-        assert len(view.movements) == 1
-        assert view.movements[0] is mov
+        assert view.movements_total == Decimal("200.00")
+
+
+class TestCashPresenterActiveCloseId:
+    def test_returns_none_initially(self) -> None:
+        """Sin cargar estado, el ID activo es None."""
+        presenter = CashPresenter(FakeCashView())
+        assert presenter.get_active_cash_close_id() is None
+
+    def test_returns_id_after_state_loaded_with_open_session(self) -> None:
+        """on_state_loaded con sesión abierta debe fijar el ID activo."""
+        presenter = CashPresenter(FakeCashView())
+        cc = _make_cash_close(id=5)
+        presenter.on_state_loaded({"cash_close": cc, "movements": [], "sales_totals": {}})
+        assert presenter.get_active_cash_close_id() == 5
+
+    def test_returns_none_after_state_loaded_without_session(self) -> None:
+        """on_state_loaded sin sesión abierta debe dejar el ID en None."""
+        presenter = CashPresenter(FakeCashView())
+        presenter.on_state_loaded({"cash_close": None, "movements": [], "sales_totals": {}})
+        assert presenter.get_active_cash_close_id() is None
+
+    def test_returns_id_after_session_opened(self) -> None:
+        """on_session_opened debe fijar el ID activo (ruta 'Abrir caja')."""
+        presenter = CashPresenter(FakeCashView())
+        cc = _make_cash_close(id=99)
+        presenter.on_session_opened(cc)
+        assert presenter.get_active_cash_close_id() == 99
+
+    def test_returns_none_after_session_closed(self) -> None:
+        """on_session_closed debe limpiar el ID activo."""
+        from src.domain.models.cash_close import CashClose
+
+        presenter = CashPresenter(FakeCashView())
+        cc = _make_cash_close(id=1)
+        presenter.on_state_loaded({"cash_close": cc, "movements": [], "sales_totals": {}})
+        closed_cc = CashClose(
+            opened_at=datetime(2026, 3, 24, 8, 0),
+            opening_amount=Decimal("5000.00"),
+            closed_at=datetime(2026, 3, 24, 20, 0),
+            closing_amount=Decimal("15000.00"),
+        )
+        presenter.on_session_closed(closed_cc)
+        assert presenter.get_active_cash_close_id() is None
+
+    def test_sales_summary_reads_totals_from_state_dict(self) -> None:
+        """El presenter muestra correctamente los totales del dict de estado."""
+        view = FakeCashView()
+        presenter = CashPresenter(view)
+        presenter.on_state_loaded({
+            "cash_close": _make_cash_close(id=1),
+            "movements": [],
+            "sales_totals": {
+                "EFECTIVO": Decimal("12500.00"),
+                "DEBITO": Decimal("3200.00"),
+                "TRANSFERENCIA": Decimal("0.00"),
+            },
+        })
+        cash, debit, transfer = view.sales_summary
+        assert cash == Decimal("12500.00")
+        assert debit == Decimal("3200.00")
+        assert transfer == Decimal("0.00")

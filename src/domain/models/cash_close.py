@@ -44,6 +44,8 @@ class CashClose:
     total_sales_cash: Decimal = field(default=Decimal("0.00"))
     total_sales_debit: Decimal = field(default=Decimal("0.00"))
     total_sales_transfer: Decimal = field(default=Decimal("0.00"))
+    gross_profit_estimate: Optional[Decimal] = field(default=None, compare=False)
+    total_cost_estimate: Optional[Decimal] = field(default=None, compare=False)
     id: Optional[int] = field(default=None, compare=False)
 
     def __post_init__(self) -> None:

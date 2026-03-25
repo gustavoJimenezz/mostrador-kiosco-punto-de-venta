@@ -1,23 +1,20 @@
-"""Vista de arqueo de caja (pestaña QWidget, F10).
+"""Vista de arqueo de caja (diálogo modal F10).
 
-Vive dentro del QTabWidget de MainWindow como tab "Cierre de Caja (F10)".
+Muestra el resumen de la sesión activa y permite realizar el cierre.
+Los movimientos manuales se gestionan desde la pestaña "Movimientos".
 Layout construido por código (sin .ui file).
 
 Layout:
     QVBoxLayout raíz
     ├── QGroupBox "Sesión de caja"
-    │   ├── QLabel _lbl_status
-    │   ├── QHBoxLayout: QLabel "Monto inicial ($):" · QDoubleSpinBox · QPushButton "Abrir caja"
+    │   └── QLabel _lbl_status
     ├── QGroupBox "Ventas del día"
     │   ├── QLabel _lbl_sales_cash
     │   ├── QLabel _lbl_sales_debit
     │   ├── QLabel _lbl_sales_transfer
     │   └── QLabel _lbl_total_sales (bold, destacado)
-    ├── QGroupBox "Movimientos manuales"
-    │   ├── QTableWidget _movements_table (Hora · Descripción · Monto)
-    │   └── QHBoxLayout: QLineEdit _input_desc · QDoubleSpinBox _spin_amount
-    │       · QPushButton "Ingreso" · QPushButton "Egreso"
-    ├── QGroupBox "Cierre"
+    ├── QGroupBox "Cierre de caja"
+    │   ├── QLabel _lbl_movements_total
     │   ├── QHBoxLayout: QLabel "Monto contado ($):" · QDoubleSpinBox · QPushButton "Cerrar caja"
     │   └── QLabel _lbl_difference
     └── QLabel _status_label
@@ -34,16 +31,12 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QPushButton,
-    QTableWidget,
-    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
 from src.domain.models.cash_close import CashClose
-from src.domain.models.cash_movement import CashMovement
 
 
 class CashCloseView(QWidget):
@@ -100,8 +93,6 @@ class CashCloseView(QWidget):
         )
         self._lbl_status.setStyleSheet("color: #059669; font-weight: bold;")
         self._btn_close.setEnabled(True)
-        self._btn_income.setEnabled(True)
-        self._btn_expense.setEnabled(True)
         if self._session_changed_callback:
             self._session_changed_callback(True)
 
@@ -111,8 +102,6 @@ class CashCloseView(QWidget):
         self._lbl_status.setText("No hay caja abierta. Abrila desde el botón superior.")
         self._lbl_status.setStyleSheet("color: #6b7280;")
         self._btn_close.setEnabled(False)
-        self._btn_income.setEnabled(False)
-        self._btn_expense.setEnabled(False)
         self._lbl_difference.setText("")
         if self._session_changed_callback:
             self._session_changed_callback(False)
@@ -130,24 +119,25 @@ class CashCloseView(QWidget):
         total = cash + debit + transfer
         self._lbl_total_sales.setText(f"TOTAL VENTAS:    ${total:>12,.2f}")
 
-    def show_movements(self, movements: list[CashMovement]) -> None:
-        """Actualiza la tabla de movimientos manuales."""
-        from PySide6.QtGui import QColor
+    def show_movements_total(self, total: Decimal) -> None:
+        """Muestra el total neto de movimientos manuales de la sesión.
 
-        self._movements_table.setRowCount(0)
-        for mov in movements:
-            row = self._movements_table.rowCount()
-            self._movements_table.insertRow(row)
-            hora = mov.created_at.strftime("%H:%M")
-            color = "#059669" if mov.is_income else "#dc2626"
-            signo = "+" if mov.is_income else "-"
-            monto_str = f"{signo}${abs(mov.amount):,.2f}"
-
-            self._movements_table.setItem(row, 0, QTableWidgetItem(hora))
-            self._movements_table.setItem(row, 1, QTableWidgetItem(mov.description))
-            monto_item = QTableWidgetItem(monto_str)
-            monto_item.setForeground(QColor(color))
-            self._movements_table.setItem(row, 2, monto_item)
+        Args:
+            total: Suma neta (positivo = ingresos netos, negativo = egresos netos).
+        """
+        if total > Decimal("0"):
+            texto = f"Movimientos manuales: +${total:,.2f}"
+            color = "#059669"
+        elif total < Decimal("0"):
+            texto = f"Movimientos manuales: -${abs(total):,.2f}"
+            color = "#dc2626"
+        else:
+            texto = "Movimientos manuales: $0,00"
+            color = "#6b7280"
+        self._lbl_movements_total.setText(texto)
+        self._lbl_movements_total.setStyleSheet(
+            f"font-family: monospace; color: {color};"
+        )
 
     def show_close_result(self, difference: Optional[Decimal]) -> None:
         """Muestra la diferencia (sobrante/faltante) al cerrar la caja."""
@@ -180,56 +170,62 @@ class CashCloseView(QWidget):
     # ------------------------------------------------------------------
 
     def _on_close_clicked(self) -> None:
-        """Cierra la sesión de caja con el monto contado."""
+        """Inicia el flujo de cierre: carga el informe y muestra el diálogo de confirmación."""
         if not self._presenter:
             return
         amount = Decimal(str(self._spin_closing.value()))
         if not self._presenter.on_close_session_requested(amount):
             return
 
+        cash_close_id = self._presenter.get_active_cash_close_id()
+        if cash_close_id is None:
+            return
+
+        from src.infrastructure.ui.workers.cash_worker import LoadCashReportWorker
+
+        worker = LoadCashReportWorker(self._session_factory, cash_close_id, amount)
+        worker.report_ready.connect(self._on_report_ready)
+        worker.error_occurred.connect(self._presenter.on_worker_error)
+        worker.finished.connect(lambda: self._cleanup_worker(worker))
+        self._active_workers.append(worker)
+        worker.start()
+
+    def _on_report_ready(self, report_data: dict) -> None:
+        """Muestra el diálogo de informe y ejecuta el cierre si el usuario confirma.
+
+        Args:
+            report_data: Datos del informe emitidos por ``LoadCashReportWorker``.
+        """
+        from PySide6.QtWidgets import QDialog
+
+        from src.infrastructure.ui.dialogs.cash_close_report_dialog import (
+            CashCloseReportDialog,
+        )
+
+        cash_close = report_data.get("cash_close")
+        if cash_close is None:
+            self._presenter.on_worker_error("No se pudo cargar el informe de cierre.")
+            return
+
+        dialog = CashCloseReportDialog(cash_close, report_data, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        # Usuario confirmó: lanzar el worker de cierre con datos de ganancia
+        profit = report_data.get("profit", {})
         from src.infrastructure.ui.workers.cash_worker import CloseCashCloseWorker
 
-        worker = CloseCashCloseWorker(self._session_factory, amount)
+        worker = CloseCashCloseWorker(
+            self._session_factory,
+            report_data["closing_amount"],
+            gross_profit_estimate=profit.get("gross_profit"),
+            total_cost_estimate=profit.get("total_cost_estimate"),
+        )
         worker.closed.connect(self._presenter.on_session_closed)
         worker.error_occurred.connect(self._presenter.on_worker_error)
         worker.finished.connect(lambda: self._cleanup_worker(worker))
         self._active_workers.append(worker)
         worker.start()
-
-    def _on_add_movement(self, is_income: bool) -> None:
-        """Registra un movimiento manual (ingreso o egreso).
-
-        Args:
-            is_income: True para ingreso (monto positivo), False para egreso (negativo).
-        """
-        if not self._presenter:
-            return
-        raw_amount = Decimal(str(self._spin_movement.value()))
-        signed_amount = raw_amount if is_income else -raw_amount
-        description = self._input_desc.text().strip()
-
-        if not self._presenter.on_add_movement_requested(signed_amount, description):
-            return
-
-        cash_close_id = self._presenter.get_active_cash_close_id()
-        if cash_close_id is None:
-            return
-
-        from src.infrastructure.ui.workers.cash_worker import AddMovementWorker
-
-        worker = AddMovementWorker(
-            self._session_factory,
-            cash_close_id,
-            signed_amount,
-            description,
-        )
-        worker.movement_added.connect(self._presenter.on_movement_added)
-        worker.error_occurred.connect(self._presenter.on_worker_error)
-        worker.finished.connect(lambda: self._cleanup_worker(worker))
-        self._active_workers.append(worker)
-        worker.start()
-        self._input_desc.clear()
-        self._spin_movement.setValue(0.0)
 
     # ------------------------------------------------------------------
     # UI construction
@@ -274,51 +270,13 @@ class CashCloseView(QWidget):
             v_sales.addWidget(lbl)
         root.addWidget(grp_sales)
 
-        # --- Movimientos manuales ----------------------------------
-        grp_movements = QGroupBox("Movimientos manuales")
-        v_mov = QVBoxLayout(grp_movements)
-
-        self._movements_table = QTableWidget(0, 3)
-        self._movements_table.setHorizontalHeaderLabels(
-            ["Hora", "Descripción", "Monto"]
-        )
-        self._movements_table.horizontalHeader().setStretchLastSection(True)
-        self._movements_table.setEditTriggers(
-            QTableWidget.EditTrigger.NoEditTriggers
-        )
-        self._movements_table.setSelectionBehavior(
-            QTableWidget.SelectionBehavior.SelectRows
-        )
-        self._movements_table.setFixedHeight(130)
-        v_mov.addWidget(self._movements_table)
-
-        row_mov = QHBoxLayout()
-        self._input_desc = QLineEdit()
-        self._input_desc.setPlaceholderText("Descripción del movimiento...")
-        row_mov.addWidget(self._input_desc, stretch=3)
-        self._spin_movement = QDoubleSpinBox()
-        self._spin_movement.setRange(0.01, 999999.99)
-        self._spin_movement.setDecimals(2)
-        self._spin_movement.setSingleStep(100)
-        row_mov.addWidget(self._spin_movement, stretch=1)
-        self._btn_income = QPushButton("+ Ingreso")
-        self._btn_income.setStyleSheet("background-color: #059669; color: white;")
-        self._btn_income.clicked.connect(
-            lambda: self._on_add_movement(is_income=True)
-        )
-        self._btn_expense = QPushButton("− Egreso")
-        self._btn_expense.setStyleSheet("background-color: #dc2626; color: white;")
-        self._btn_expense.clicked.connect(
-            lambda: self._on_add_movement(is_income=False)
-        )
-        row_mov.addWidget(self._btn_income)
-        row_mov.addWidget(self._btn_expense)
-        v_mov.addLayout(row_mov)
-        root.addWidget(grp_movements)
-
         # --- Cierre -----------------------------------------------
         grp_close = QGroupBox("Cierre de caja")
         v_close = QVBoxLayout(grp_close)
+
+        self._lbl_movements_total = QLabel("Movimientos manuales: $0,00")
+        self._lbl_movements_total.setStyleSheet("font-family: monospace; color: #6b7280;")
+        v_close.addWidget(self._lbl_movements_total)
 
         row_close = QHBoxLayout()
         row_close.addWidget(QLabel("Monto contado ($):"))

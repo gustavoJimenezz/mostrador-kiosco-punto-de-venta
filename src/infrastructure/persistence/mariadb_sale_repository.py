@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from src.domain.models.sale import PaymentMethod, Sale, SaleItem
 from src.infrastructure.persistence.tables import (
+    cash_closes_table,
     products_table,
     sale_items_table,
     sales_table,
@@ -97,6 +98,19 @@ class MariadbSaleRepository:
                     products_table.update()
                     .where(products_table.c.id == item.product_id)
                     .values(stock=products_table.c.stock - item.quantity)
+                )
+
+            if sale.cash_close_id is not None:
+                if sale.payment_method == PaymentMethod.CASH:
+                    col = cash_closes_table.c.total_sales_cash
+                elif sale.payment_method == PaymentMethod.DEBIT:
+                    col = cash_closes_table.c.total_sales_debit
+                else:
+                    col = cash_closes_table.c.total_sales_transfer
+                self._session.execute(
+                    cash_closes_table.update()
+                    .where(cash_closes_table.c.id == sale.cash_close_id)
+                    .values({col.key: col + sale.total_amount.amount})
                 )
 
             self._session.commit()

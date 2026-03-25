@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.domain.models.user import User
+from src.infrastructure.ui.app_config import get_app_icon
 
 
 class LoginWindow(QDialog):
@@ -40,7 +41,7 @@ class LoginWindow(QDialog):
         self._selected_user: User | None = None
 
         self.setWindowTitle("Mostrador POS — Iniciar sesión")
-        self.setMinimumSize(420, 340)
+        self.setMinimumSize(420, 460)
         self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint)
 
         self._build_ui()
@@ -53,8 +54,13 @@ class LoginWindow(QDialog):
     def _build_ui(self) -> None:
         """Construye el layout principal de la ventana."""
         root = QVBoxLayout(self)
-        root.setContentsMargins(40, 60, 40, 60)
+        root.setContentsMargins(40, 32, 40, 40)
         root.setSpacing(10)
+
+        logo_label = QLabel()
+        logo_label.setPixmap(get_app_icon().pixmap(120, 120))
+        logo_label.setAlignment(Qt.AlignCenter)
+        root.addWidget(logo_label)
 
         title = QLabel("Selecciona tu usuario")
         title.setAlignment(Qt.AlignCenter)

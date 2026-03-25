@@ -15,7 +15,6 @@ from src.application.use_cases.add_cash_movement import AddCashMovement
 from src.application.use_cases.close_cash_close import CloseCashClose
 from src.application.use_cases.get_or_open_cash_close import GetOrOpenCashClose
 from src.domain.models.cash_close import CashClose
-from src.domain.models.cash_movement import MovementType
 from tests.unit.domain.mocks.in_memory_cash_repository import (
     InMemoryCashCloseRepository,
     InMemoryCashMovementRepository,
@@ -118,12 +117,11 @@ class TestAddCashMovement:
         mov = uc.execute(
             cash_close_id=1,
             amount=Decimal("2000.00"),
-            movement_type=MovementType.INCOME,
             description="Reposición de cambio",
         )
 
         assert mov.id is not None
-        assert mov.movement_type == MovementType.INCOME
+        assert mov.is_income is True
         assert mov.amount == Decimal("2000.00")
 
     def test_expense_movement_persisted(self):
@@ -132,12 +130,11 @@ class TestAddCashMovement:
 
         mov = uc.execute(
             cash_close_id=1,
-            amount=Decimal("500.00"),
-            movement_type=MovementType.EXPENSE,
+            amount=Decimal("-500.00"),
             description="Pago a proveedor",
         )
 
-        assert mov.movement_type == MovementType.EXPENSE
+        assert mov.is_income is False
 
     def test_description_stripped_whitespace(self):
         repo = InMemoryCashMovementRepository()
@@ -146,7 +143,6 @@ class TestAddCashMovement:
         mov = uc.execute(
             cash_close_id=1,
             amount=Decimal("100.00"),
-            movement_type=MovementType.INCOME,
             description="  Descripción con espacios  ",
         )
 
@@ -160,7 +156,6 @@ class TestAddCashMovement:
             uc.execute(
                 cash_close_id=1,
                 amount=Decimal("0"),
-                movement_type=MovementType.INCOME,
                 description="Test",
             )
 
@@ -172,6 +167,5 @@ class TestAddCashMovement:
             uc.execute(
                 cash_close_id=1,
                 amount=Decimal("100.00"),
-                movement_type=MovementType.INCOME,
                 description="",
             )

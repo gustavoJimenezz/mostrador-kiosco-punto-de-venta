@@ -9,9 +9,22 @@ monitores de escritorio 19" 1280x1024 (ratio 4:3).
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
+
+_ASSETS_DIR = Path(__file__).parent / "assets"
+
+
+def get_app_icon() -> QIcon:
+    """Retorna el QIcon principal de la aplicación desde los assets locales.
+
+    Returns:
+        QIcon cargado desde ``src/infrastructure/ui/assets/logo.png``.
+    """
+    return QIcon(str(_ASSETS_DIR / "logo.png"))
 
 
 def configure_high_dpi() -> None:

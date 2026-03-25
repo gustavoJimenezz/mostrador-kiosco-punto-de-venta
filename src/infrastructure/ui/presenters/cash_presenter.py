@@ -40,8 +40,8 @@ class ICashView(Protocol):
         """Actualiza los labels de totales de ventas del día."""
         ...
 
-    def show_movements(self, movements: list[CashMovement]) -> None:
-        """Actualiza la tabla de movimientos manuales."""
+    def show_movements_total(self, total: Decimal) -> None:
+        """Muestra el total neto de movimientos manuales de la sesión."""
         ...
 
     def show_close_result(self, difference: Optional[Decimal]) -> None:
@@ -54,6 +54,31 @@ class ICashView(Protocol):
 
     def show_success(self, message: str) -> None:
         """Muestra un mensaje de éxito en la barra de estado."""
+        ...
+
+
+@runtime_checkable
+class ICashMovementsView(Protocol):
+    """Interfaz para la pestaña de movimientos manuales de caja."""
+
+    def show_session_open(self, cash_close: CashClose) -> None:
+        """Habilita el formulario y muestra info de la sesión activa."""
+        ...
+
+    def show_session_closed(self) -> None:
+        """Deshabilita el formulario al no haber sesión activa."""
+        ...
+
+    def show_movements(self, movements: list[CashMovement]) -> None:
+        """Actualiza la tabla de movimientos y el total neto."""
+        ...
+
+    def show_error(self, message: str) -> None:
+        """Muestra un mensaje de error."""
+        ...
+
+    def show_success(self, message: str) -> None:
+        """Muestra un mensaje de éxito."""
         ...
 
 
@@ -73,9 +98,18 @@ class CashPresenter:
 
     def __init__(self, view: ICashView) -> None:
         self._view = view
+        self._movements_view: Optional[ICashMovementsView] = None
         self._active_close: Optional[CashClose] = None
         self._movements: list[CashMovement] = []
         self._sales_totals: dict[str, Decimal] = {}
+
+    def set_movements_view(self, view: ICashMovementsView) -> None:
+        """Inyecta la vista de movimientos manuales (pestaña pública).
+
+        Args:
+            view: Instancia que implementa ICashMovementsView.
+        """
+        self._movements_view = view
 
     # ------------------------------------------------------------------
     # Callbacks de workers
@@ -93,14 +127,20 @@ class CashPresenter:
 
         if self._active_close:
             self._view.show_session_open(self._active_close)
+            if self._movements_view:
+                self._movements_view.show_session_open(self._active_close)
         else:
             self._view.show_session_closed()
+            if self._movements_view:
+                self._movements_view.show_session_closed()
 
         cash = self._sales_totals.get("EFECTIVO", Decimal("0"))
         debit = self._sales_totals.get("DEBITO", Decimal("0"))
         transfer = self._sales_totals.get("TRANSFERENCIA", Decimal("0"))
         self._view.show_sales_summary(cash, debit, transfer)
-        self._view.show_movements(self._movements)
+        self._view.show_movements_total(self._compute_movements_total())
+        if self._movements_view:
+            self._movements_view.show_movements(self._movements)
 
     def on_session_opened(self, cash_close: CashClose) -> None:
         """Callback: sesión abierta exitosamente.
@@ -109,8 +149,13 @@ class CashPresenter:
             cash_close: Arqueo de caja recién creado o ya existente.
         """
         self._active_close = cash_close
+        self._movements = []
         self._view.show_session_open(cash_close)
+        self._view.show_movements_total(Decimal("0"))
         self._view.show_success("Caja abierta correctamente.")
+        if self._movements_view:
+            self._movements_view.show_session_open(cash_close)
+            self._movements_view.show_movements([])
 
     def on_session_closed(self, cash_close: CashClose) -> None:
         """Callback: sesión cerrada exitosamente.
@@ -119,9 +164,14 @@ class CashPresenter:
             cash_close: Arqueo de caja recién cerrado.
         """
         self._active_close = None
+        self._movements = []
         difference = cash_close.cash_difference
         self._view.show_close_result(difference)
         self._view.show_session_closed()
+        self._view.show_movements_total(Decimal("0"))
+        if self._movements_view:
+            self._movements_view.show_session_closed()
+            self._movements_view.show_movements([])
 
         if difference is not None:
             if difference >= Decimal("0"):
@@ -137,11 +187,14 @@ class CashPresenter:
             movement: CashMovement persistido.
         """
         self._movements.append(movement)
-        self._view.show_movements(self._movements)
+        self._view.show_movements_total(self._compute_movements_total())
         tipo = "Ingreso" if movement.is_income else "Egreso"
-        self._view.show_success(
-            f"{tipo} registrado: ${abs(movement.amount):,.2f} — {movement.description}"
-        )
+        msg = f"{tipo} registrado: ${abs(movement.amount):,.2f} — {movement.description}"
+        if self._movements_view:
+            self._movements_view.show_movements(self._movements)
+            self._movements_view.show_success(msg)
+        else:
+            self._view.show_success(msg)
 
     def on_worker_error(self, message: str) -> None:
         """Callback: error en cualquier worker de caja.
@@ -218,3 +271,11 @@ class CashPresenter:
             ID del CashClose abierto, o None.
         """
         return self._active_close.id if self._active_close else None
+
+    def _compute_movements_total(self) -> Decimal:
+        """Calcula la suma neta de todos los movimientos manuales de la sesión.
+
+        Returns:
+            Suma de ``amount`` de cada movimiento (positivos = ingresos, negativos = egresos).
+        """
+        return sum((m.amount for m in self._movements), Decimal("0"))

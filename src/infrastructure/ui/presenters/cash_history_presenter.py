@@ -19,7 +19,9 @@ from src.domain.models.cash_close import CashClose
 class ICashHistoryView(Protocol):
     """Interfaz que la vista de historial de arqueos debe implementar."""
 
-    def show_closes(self, closes: list[CashClose]) -> None:
+    def show_closes(
+        self, closes: list[CashClose], movements_totals: dict
+    ) -> None:
         """Muestra la lista de arqueos en la tabla."""
         ...
 
@@ -51,15 +53,17 @@ class CashHistoryPresenter:
     # Callbacks de workers
     # ------------------------------------------------------------------
 
-    def on_closes_loaded(self, closes: list[CashClose]) -> None:
+    def on_closes_loaded(self, payload: dict) -> None:
         """Callback: recibe la lista de arqueos desde LoadCashHistoryWorker.
 
         Args:
-            closes: Lista de CashClose del rango consultado.
+            payload: Diccionario con ``closes`` y ``movements_totals``.
         """
+        closes = payload.get("closes", [])
+        movements_totals = payload.get("movements_totals", {})
         self._closes = closes
         self._view.show_loading(False)
-        self._view.show_closes(closes)
+        self._view.show_closes(closes, movements_totals)
 
     def on_worker_error(self, message: str) -> None:
         """Callback: error en el worker de historial.

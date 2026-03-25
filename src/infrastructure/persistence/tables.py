@@ -102,6 +102,8 @@ cash_closes_table = Table(
     Column(
         "total_sales_transfer", Numeric(12, 2), nullable=False, server_default="0.00"
     ),
+    Column("gross_profit_estimate", Numeric(12, 2), nullable=True),
+    Column("total_cost_estimate", Numeric(12, 2), nullable=True),
 )
 
 # ---------------------------------------------------------------------------

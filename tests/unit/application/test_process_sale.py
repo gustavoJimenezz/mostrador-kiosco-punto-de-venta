@@ -238,3 +238,32 @@ class TestProcessSaleExecution:
 
         with pytest.raises(RuntimeError, match="DB connection lost"):
             use_case.execute(cart, PaymentMethod.CASH)
+
+
+class TestProcessSaleCashCloseId:
+    def test_cash_close_id_none_by_default(
+        self, use_case: ProcessSale, product: Product
+    ) -> None:
+        """Sin pasar cash_close_id, la venta queda con None."""
+        cart = {product.id: (product, 1)}
+        sale = use_case.execute(cart, PaymentMethod.CASH)
+        assert sale.cash_close_id is None
+
+    def test_cash_close_id_is_set_on_sale(
+        self, use_case: ProcessSale, product: Product
+    ) -> None:
+        """Cuando se provee cash_close_id, la venta lo hereda."""
+        cart = {product.id: (product, 1)}
+        sale = use_case.execute(cart, PaymentMethod.CASH, cash_close_id=42)
+        assert sale.cash_close_id == 42
+
+    def test_cash_close_id_persisted_in_repository(
+        self,
+        use_case: ProcessSale,
+        sale_repo: InMemorySaleRepository,
+        product: Product,
+    ) -> None:
+        """El ID del arqueo se guarda en el repositorio vía el objeto Sale."""
+        cart = {product.id: (product, 1)}
+        use_case.execute(cart, PaymentMethod.CASH, cash_close_id=7)
+        assert sale_repo.saved[0].cash_close_id == 7

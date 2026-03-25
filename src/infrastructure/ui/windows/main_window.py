@@ -161,13 +161,15 @@ class MainWindow(QMainWindow):
         self._stock_inject_view.set_presenter(presenter)
 
     def set_cash_presenter(self, presenter) -> None:
-        """Inyecta el CashPresenter en la CashCloseView.
+        """Inyecta el CashPresenter en la CashCloseView y en CashMovementsView.
 
         Args:
             presenter: CashPresenter ya configurado con la vista.
         """
         self._cash_presenter = presenter
         self._cash_close_view.set_presenter(presenter)
+        self._cash_movements_view.set_presenter(presenter)
+        presenter.set_movements_view(self._cash_movements_view)
 
     def set_sales_history_presenter(self, presenter) -> None:
         """Inyecta el SalesHistoryPresenter en la SalesHistoryView.
@@ -196,6 +198,11 @@ class MainWindow(QMainWindow):
     def sales_history_view(self):
         """Retorna la instancia de SalesHistoryView (pestaña F2)."""
         return self._sales_history_view
+
+    @property
+    def cash_movements_view(self):
+        """Retorna la instancia de CashMovementsView (pestaña Movimientos, visible a todos)."""
+        return self._cash_movements_view
 
     @property
     def cash_history_view(self):
@@ -394,7 +401,15 @@ class MainWindow(QMainWindow):
         )
         self._tab_widget.addTab(self._sales_history_view, "Historial (F2)")
 
-        # Tab 6: Historial de cierres de caja (solo ADMIN) — construido programáticamente
+        # Tab 6: Movimientos manuales de caja (visible para todos) — construido programáticamente
+        from src.infrastructure.ui.views.cash_movements_view import CashMovementsView
+
+        self._cash_movements_view = CashMovementsView(
+            session_factory=self._session_factory
+        )
+        self._tab_widget.addTab(self._cash_movements_view, "Movimientos")
+
+        # Tab 7: Historial de cierres de caja (solo ADMIN) — construido programáticamente
         from src.infrastructure.ui.views.cash_history_view import CashHistoryView
 
         self._cash_history_view = CashHistoryView(
@@ -477,6 +492,11 @@ class MainWindow(QMainWindow):
         worker.state_loaded.connect(
             lambda state: self._on_cash_session_changed(state.get("cash_close") is not None)
         )
+        worker.state_loaded.connect(
+            lambda state: self._cash_presenter.on_state_loaded(state)
+            if self._cash_presenter
+            else None
+        )
         worker.finished.connect(lambda: self._cleanup_worker(worker))
         self._active_workers.append(worker)
         worker.start()
@@ -504,6 +524,11 @@ class MainWindow(QMainWindow):
         worker.opened.connect(
             lambda _cc: self.statusBar().showMessage("✓ Caja abierta correctamente.", 4000)
         )
+        worker.opened.connect(
+            lambda cc: self._cash_presenter.on_session_opened(cc)
+            if self._cash_presenter
+            else None
+        )
         worker.error_occurred.connect(
             lambda msg: self.statusBar().showMessage(f"⚠ {msg}", 5000)
         )
@@ -520,7 +545,8 @@ class MainWindow(QMainWindow):
         self._elevate_use_case = use_case
 
     # Índices de las pestañas exclusivas de administrador.
-    _ADMIN_TAB_INDICES = [1, 2, 3, 4, 6]
+    # Tab 6 (Movimientos) es visible para todos los usuarios.
+    _ADMIN_TAB_INDICES = [1, 2, 3, 4, 7]
 
     def _lock_admin_tabs(self) -> None:
         """Oculta las pestañas de administrador y muestra el botón de acceso bloqueado."""
@@ -537,7 +563,7 @@ class MainWindow(QMainWindow):
         """Muestra las pestañas de administrador y actualiza el botón a desbloqueado."""
         for index in self._ADMIN_TAB_INDICES:
             self._tab_widget.setTabVisible(index, True)
-        self._admin_btn.setText("🔓 Administrador")
+        self._admin_btn.setText("✕ Ocultar panel")
         self._admin_btn.setStyleSheet(
             "QPushButton { padding: 4px 12px; border-radius: 5px;"
             "background: #4f46e5; color: white; border: none; font-size: 12px; }"
@@ -564,7 +590,11 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _on_admin_access_requested(self) -> None:
-        """Muestra el diálogo de PIN de administrador y desbloquea las pestañas si es correcto."""
+        """Muestra el diálogo de PIN o oculta las pestañas si ya están desbloqueadas."""
+        if self._tab_widget.isTabVisible(self._ADMIN_TAB_INDICES[0]):
+            self._lock_admin_tabs()
+            return
+
         from src.infrastructure.ui.dialogs.admin_pin_dialog import AdminPinDialog
 
         dialog = AdminPinDialog(parent=self)
@@ -716,6 +746,8 @@ class MainWindow(QMainWindow):
         elif index == 5:
             self._sales_history_view.on_view_activated()
         elif index == 6:
+            self._cash_movements_view.on_view_activated()
+        elif index == 7:
             self._cash_history_view.on_view_activated()
 
     def _on_cash_close(self) -> None:

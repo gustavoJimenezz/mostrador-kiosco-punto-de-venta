@@ -59,6 +59,7 @@ class CashHistoryView(QWidget):
         "Ventas débito",
         "Ventas transf.",
         "Total ventas",
+        "Mov. manuales",
         "Monto contado",
         "Diferencia",
         "Estado",
@@ -87,17 +88,22 @@ class CashHistoryView(QWidget):
     # ICashHistoryView implementation
     # ------------------------------------------------------------------
 
-    def show_closes(self, closes: list[CashClose]) -> None:
+    def show_closes(
+        self, closes: list[CashClose], movements_totals: dict
+    ) -> None:
         """Muestra la lista de arqueos en la tabla.
 
         Args:
             closes: Lista de CashClose a renderizar.
+            movements_totals: Mapa ``{cash_close_id: total_neto}`` de movimientos.
         """
         self._table.setRowCount(0)
         for cc in closes:
             row = self._table.rowCount()
             self._table.insertRow(row)
-            self._fill_row(row, cc)
+            from decimal import Decimal as _D
+            mov_total = movements_totals.get(cc.id, _D("0"))
+            self._fill_row(row, cc, mov_total)
 
         count = len(closes)
         self._status_label.setText(
@@ -225,12 +231,13 @@ class CashHistoryView(QWidget):
         """Dispara la búsqueda automáticamente al activar la pestaña."""
         self._on_search()
 
-    def _fill_row(self, row: int, cc: CashClose) -> None:
+    def _fill_row(self, row: int, cc: CashClose, mov_total: Decimal) -> None:
         """Rellena una fila de la tabla con los datos del arqueo.
 
         Args:
             row: Índice de fila en el QTableWidget.
             cc: Arqueo de caja a renderizar.
+            mov_total: Suma neta de movimientos manuales del arqueo.
         """
         fecha = cc.opened_at.strftime("%d/%m/%Y")
         apertura = cc.opened_at.strftime("%H:%M")
@@ -243,6 +250,16 @@ class CashHistoryView(QWidget):
         monto_contado = (
             f"${cc.closing_amount:,.2f}" if cc.closing_amount is not None else "—"
         )
+
+        if mov_total > Decimal("0"):
+            mov_text = f"+${mov_total:,.2f}"
+            mov_color = "#059669"
+        elif mov_total < Decimal("0"):
+            mov_text = f"-${abs(mov_total):,.2f}"
+            mov_color = "#dc2626"
+        else:
+            mov_text = "$0,00"
+            mov_color = None
 
         diferencia = cc.cash_difference
         if diferencia is None:
@@ -261,19 +278,19 @@ class CashHistoryView(QWidget):
         values = [
             fecha, apertura, cierre, fondo,
             ventas_cash, ventas_debit, ventas_transf, total_ventas,
-            monto_contado, diff_text, estado,
+            mov_text, monto_contado, diff_text, estado,
         ]
         colors = [
             None, None, None, None,
             None, None, None, None,
-            None, diff_color, estado_color,
+            mov_color, None, diff_color, estado_color,
         ]
 
         for col, (text, color) in enumerate(zip(values, colors)):
             item = QTableWidgetItem(text)
             item.setTextAlignment(
                 Qt.AlignmentFlag.AlignCenter
-                if col in (0, 1, 2, 10)
+                if col in (0, 1, 2, 11)
                 else Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
             )
             if color:

@@ -35,7 +35,7 @@ from src.infrastructure.persistence.mariadb_product_repository import (
 from src.infrastructure.persistence.mariadb_user_repository import (
     MariadbUserRepository,
 )
-from src.infrastructure.ui.app_config import configure_high_dpi
+from src.infrastructure.ui.app_config import configure_high_dpi, get_app_icon
 from src.infrastructure.ui.presenters.cash_presenter import CashPresenter
 from src.infrastructure.ui.presenters.import_presenter import ImportPresenter
 from src.infrastructure.ui.presenters.login_presenter import LoginPresenter
@@ -70,6 +70,7 @@ def main() -> int:
     session_factory = create_session_factory(engine)
 
     app = QApplication(sys.argv)
+    app.setWindowIcon(get_app_icon())
 
     # --- Fase de autenticación -------------------------------------------
     # Se usa una sesión dedicada para el login. exec() es bloqueante (modal),
