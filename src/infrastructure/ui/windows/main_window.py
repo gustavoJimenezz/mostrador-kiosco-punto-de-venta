@@ -7,10 +7,10 @@ y gestiona los workers QThread para operaciones de DB.
 Atajos de teclado (keyboard-first):
     F1  - Nueva venta (limpia carrito)
     F4  - Confirmar venta / Cobrar
-    F5  - Gestión de productos
-    F6  - Editar stock
-    F7  - Inyectar stock directamente
-    F9  - Importar lista de precios CSV/Excel (importación masiva)
+    F5  - Panel administrador → Inventario
+    F6  - Panel administrador → Editar stock
+    F7  - Panel administrador → Inyectar stock
+    F9  - Panel administrador → Importar lista de precios CSV/Excel
     F10 - Cierre de caja (abre modal)
     F12 - Cobrar en efectivo con diálogo de vuelto
     Supr - Eliminar producto seleccionado del carrito
@@ -81,39 +81,39 @@ class MainWindow(QMainWindow):
 
     @property
     def import_view(self):
-        """Retorna la instancia de ImportView (pestaña de importación).
+        """Retorna la ImportView alojada dentro del panel de administrador.
 
         Returns:
-            ImportView insertada en el tab "📥 Importar (F9)".
+            ImportView instanciada en AdminPanelView.
         """
-        return self._import_view
+        return self._admin_panel_view.import_view
 
     @property
     def product_management_view(self):
-        """Retorna la instancia de ProductManagementView (pestaña de productos).
+        """Retorna la ProductManagementView (Inventario) del panel de administrador.
 
         Returns:
-            ProductManagementView insertada en el tab "Productos (F5)".
+            ProductManagementView instanciada en AdminPanelView.
         """
-        return self._product_management_view
+        return self._admin_panel_view.inventory_view
 
     @property
     def stock_edit_view(self):
-        """Retorna la instancia de StockEditView (pestaña de edición de stock).
+        """Retorna la StockEditView del panel de administrador.
 
         Returns:
-            StockEditView insertada en el tab "Editar Stock (F6)".
+            StockEditView instanciada en AdminPanelView.
         """
-        return self._stock_edit_view
+        return self._admin_panel_view.stock_edit_view
 
     @property
     def stock_inject_view(self):
-        """Retorna la instancia de StockInjectView (pestaña de inyección de stock).
+        """Retorna la StockInjectView del panel de administrador.
 
         Returns:
-            StockInjectView insertada en el tab "Inyectar Stock (F7)".
+            StockInjectView instanciada en AdminPanelView.
         """
-        return self._stock_inject_view
+        return self._admin_panel_view.stock_inject_view
 
     def set_presenter(self, presenter) -> None:
         """Inyecta el SalePresenter en la ventana.
@@ -124,40 +124,40 @@ class MainWindow(QMainWindow):
         self._presenter = presenter
 
     def set_import_presenter(self, presenter) -> None:
-        """Inyecta el ImportPresenter en la ImportView.
+        """Inyecta el ImportPresenter en la ImportView del panel de administrador.
 
         Args:
             presenter: ImportPresenter ya configurado con la ImportView.
         """
         self._import_presenter = presenter  # [DEV_ONLY] referencia para hot-reload
-        self._import_view.set_presenter(presenter)
+        self._admin_panel_view.import_view.set_presenter(presenter)
 
     def set_product_presenter(self, presenter) -> None:
-        """Inyecta el ProductPresenter en la ProductManagementView.
+        """Inyecta el ProductPresenter en la vista de inventario del panel de administrador.
 
         Args:
             presenter: ProductPresenter ya configurado con la vista.
         """
         self._product_presenter = presenter  # [DEV_ONLY] referencia para hot-reload
-        self._product_management_view.set_presenter(presenter)
+        self._admin_panel_view.inventory_view.set_presenter(presenter)
 
     def set_stock_edit_presenter(self, presenter) -> None:
-        """Inyecta el StockEditPresenter en la StockEditView.
+        """Inyecta el StockEditPresenter en la StockEditView del panel de administrador.
 
         Args:
             presenter: StockEditPresenter ya configurado con la vista.
         """
         self._stock_edit_presenter = presenter  # [DEV_ONLY] referencia para hot-reload
-        self._stock_edit_view.set_presenter(presenter)
+        self._admin_panel_view.stock_edit_view.set_presenter(presenter)
 
     def set_stock_inject_presenter(self, presenter) -> None:
-        """Inyecta el StockInjectPresenter en la StockInjectView.
+        """Inyecta el StockInjectPresenter en la StockInjectView del panel de administrador.
 
         Args:
             presenter: StockInjectPresenter ya configurado con la vista.
         """
         self._stock_inject_presenter = presenter  # [DEV_ONLY] referencia para hot-reload
-        self._stock_inject_view.set_presenter(presenter)
+        self._admin_panel_view.stock_inject_view.set_presenter(presenter)
 
     def set_cash_presenter(self, presenter) -> None:
         """Inyecta el CashPresenter en la CashCloseView y en CashMovementsView.
@@ -171,22 +171,22 @@ class MainWindow(QMainWindow):
         presenter.set_movements_view(self._cash_movements_view)
 
     def set_cash_history_presenter(self, presenter) -> None:
-        """Inyecta el CashHistoryPresenter en la CashHistoryView.
+        """Inyecta el CashHistoryPresenter en la CashHistoryView del panel de administrador.
 
         Args:
             presenter: CashHistoryPresenter ya configurado con la vista.
         """
         self._cash_history_presenter = presenter  # [DEV_ONLY] referencia para hot-reload
-        self._cash_history_view.set_presenter(presenter)
+        self._admin_panel_view.cash_history_view.set_presenter(presenter)
 
     def set_sales_history_presenter(self, presenter) -> None:
-        """Inyecta el SalesHistoryPresenter en la SalesHistoryView.
+        """Inyecta el SalesHistoryPresenter en la SalesHistoryView del panel de administrador.
 
         Args:
             presenter: SalesHistoryPresenter ya configurado con la vista.
         """
         self._sales_history_presenter = presenter  # [DEV_ONLY] referencia para hot-reload
-        self._sales_history_view.set_presenter(presenter)
+        self._admin_panel_view.sales_history_view.set_presenter(presenter)
 
     @property
     def cash_close_view(self):
@@ -200,13 +200,13 @@ class MainWindow(QMainWindow):
 
     @property
     def cash_history_view(self):
-        """Retorna la instancia de CashHistoryView (pestaña Historial de caja, solo ADMIN)."""
-        return self._cash_history_view
+        """Retorna la CashHistoryView del panel de administrador."""
+        return self._admin_panel_view.cash_history_view
 
     @property
     def sales_history_view(self):
-        """Retorna la instancia de SalesHistoryView (pestaña Historial de Ventas, solo ADMIN)."""
-        return self._sales_history_view
+        """Retorna la SalesHistoryView del panel de administrador."""
+        return self._admin_panel_view.sales_history_view
 
     # ------------------------------------------------------------------
     # ISaleView implementation
@@ -305,8 +305,6 @@ class MainWindow(QMainWindow):
 
     def _load_ui(self) -> None:
         """Carga el archivo .ui de Qt Designer y extrae los widgets."""
-        from src.infrastructure.ui.views.import_view import ImportView
-
         loader = QUiLoader()
         ui_widget = loader.load(str(_UI_PATH), self)
 
@@ -363,36 +361,14 @@ class MainWindow(QMainWindow):
 
         self._tab_widget.setCornerWidget(_corner)
 
+        # Eliminar el tab placeholder "tab_import" del .ui (ya no se usa directamente)
         tab_import = ui_widget.findChild(QWidget, "tab_import")
-        self._tab_import = tab_import  # [DEV_ONLY] referencia para hot-reload de ImportView
-        self._import_view = ImportView()
-        tab_layout = QVBoxLayout(tab_import)
-        tab_layout.setContentsMargins(0, 0, 0, 0)
-        tab_layout.addWidget(self._import_view)
+        if tab_import is not None:
+            idx = self._tab_widget.indexOf(tab_import)
+            if idx >= 0:
+                self._tab_widget.removeTab(idx)
 
-        # Tab 2: Gestión de Productos (F5) — construido programáticamente
-        from src.infrastructure.ui.views.product_management_view import (
-            ProductManagementView,
-        )
-
-        self._product_management_view = ProductManagementView(
-            session_factory=self._session_factory
-        )
-        self._tab_widget.addTab(self._product_management_view, "Productos (F5)")
-
-        # Tab 3: Editar Stock (F6) — construido programáticamente
-        from src.infrastructure.ui.views.stock_edit_view import StockEditView
-
-        self._stock_edit_view = StockEditView(session_factory=self._session_factory)
-        self._tab_widget.addTab(self._stock_edit_view, "Editar Stock (F6)")
-
-        # Tab 4: Inyectar Stock (F7) — construido programáticamente
-        from src.infrastructure.ui.views.stock_inject_view import StockInjectView
-
-        self._stock_inject_view = StockInjectView(session_factory=self._session_factory)
-        self._tab_widget.addTab(self._stock_inject_view, "Inyectar Stock (F7)")
-
-        # Tab 5: Movimientos manuales de caja (visible para todos) — construido programáticamente
+        # Tab 1: Movimientos manuales de caja (visible para todos)
         from src.infrastructure.ui.views.cash_movements_view import CashMovementsView
 
         self._cash_movements_view = CashMovementsView(
@@ -400,21 +376,11 @@ class MainWindow(QMainWindow):
         )
         self._tab_widget.addTab(self._cash_movements_view, "Movimientos de caja")
 
-        # Tab 6: Historial de cierres de caja (solo ADMIN) — construido programáticamente
-        from src.infrastructure.ui.views.cash_history_view import CashHistoryView
+        # Tab 2: Panel de Administrador unificado (solo ADMIN)
+        from src.infrastructure.ui.views.admin_panel_view import AdminPanelView
 
-        self._cash_history_view = CashHistoryView(
-            session_factory=self._session_factory
-        )
-        self._tab_widget.addTab(self._cash_history_view, "Historial de caja")
-
-        # Tab 7: Historial de ventas (solo ADMIN) — construido programáticamente
-        from src.infrastructure.ui.views.sales_history_view import SalesHistoryView
-
-        self._sales_history_view = SalesHistoryView(
-            session_factory=self._session_factory
-        )
-        self._tab_widget.addTab(self._sales_history_view, "Historial de Ventas")
+        self._admin_panel_view = AdminPanelView(session_factory=self._session_factory)
+        self._tab_widget.addTab(self._admin_panel_view, "Panel Administrador")
 
         # Diálogo modal de cierre de caja (F10) — no es una pestaña
         from src.infrastructure.ui.dialogs.cash_close_dialog import CashCloseDialog
@@ -558,9 +524,10 @@ class MainWindow(QMainWindow):
         """
         self._elevate_use_case = use_case
 
-    # Índices de las pestañas exclusivas de administrador.
-    # Tab 5 (Movimientos) es visible para todos los usuarios.
-    _ADMIN_TAB_INDICES = [1, 2, 3, 4, 6, 7]
+    # Índice del tab exclusivo de administrador.
+    # Tab 1 (Movimientos de caja) es visible para todos los usuarios.
+    # Tab 2 (Panel Administrador) agrupa todas las vistas admin.
+    _ADMIN_TAB_INDICES = [2]
 
     def _lock_admin_tabs(self) -> None:
         """Oculta las pestañas de administrador y muestra el botón de acceso bloqueado."""
@@ -706,58 +673,51 @@ class MainWindow(QMainWindow):
         worker.start()
 
     def _on_open_products(self) -> None:
-        """F5: navega al tab de gestión de productos (solo ADMIN)."""
+        """F5: abre el panel de administrador en la sección Inventario (solo ADMIN)."""
         from src.infrastructure.ui.session import AppSession
 
         if not AppSession.is_admin():
             return
         self._tab_widget.setCurrentIndex(2)
-        self._product_management_view.on_view_activated()
+        self._admin_panel_view.navigate_to("inventory")
 
     def _on_open_stock_edit(self) -> None:
-        """F6: navega al tab de edición de stock (solo ADMIN)."""
+        """F6: abre el panel de administrador en Editar stock (solo ADMIN)."""
         from src.infrastructure.ui.session import AppSession
 
         if not AppSession.is_admin():
             return
-        self._tab_widget.setCurrentIndex(3)
-        self._stock_edit_view.on_view_activated()
+        self._tab_widget.setCurrentIndex(2)
+        self._admin_panel_view.navigate_to("stock_edit")
 
     def _on_open_stock_inject(self) -> None:
-        """F7: navega al tab de inyección directa de stock (solo ADMIN)."""
+        """F7: abre el panel de administrador en Inyectar stock (solo ADMIN)."""
         from src.infrastructure.ui.session import AppSession
 
         if not AppSession.is_admin():
             return
-        self._tab_widget.setCurrentIndex(4)
-        self._stock_inject_view.on_view_activated()
+        self._tab_widget.setCurrentIndex(2)
+        self._admin_panel_view.navigate_to("stock_inject")
 
     def _on_open_import(self) -> None:
-        """F9: navega al tab de importación masiva de lista de precios (solo ADMIN)."""
+        """F9: abre el panel de administrador en la sección Importar (solo ADMIN)."""
         from src.infrastructure.ui.session import AppSession
 
         if not AppSession.is_admin():
             return
-        self._tab_widget.setCurrentIndex(1)
+        self._tab_widget.setCurrentIndex(2)
+        self._admin_panel_view.navigate_to("import")
 
     def _on_tab_changed(self, index: int) -> None:
-        """Dispara on_view_activated al cambiar al tab de productos o stock.
+        """Dispara on_view_activated al cambiar de pestaña.
 
         Args:
             index: Índice del tab activado.
         """
-        if index == 2:
-            self._product_management_view.on_view_activated()
-        elif index == 3:
-            self._stock_edit_view.on_view_activated()
-        elif index == 4:
-            self._stock_inject_view.on_view_activated()
-        elif index == 5:
+        if index == 1:
             self._cash_movements_view.on_view_activated()
-        elif index == 6:
-            self._cash_history_view.on_view_activated()
-        elif index == 7:
-            self._sales_history_view.on_view_activated()
+        elif index == 2:
+            self._admin_panel_view.on_view_activated()
 
     def _on_cash_close(self) -> None:
         """F10 / botón Cierre de caja: abre el modal de arqueo."""
@@ -883,48 +843,9 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     #: Mapa de índice de pestaña → configuración de recarga.
-    _DEV_RELOAD_MAP: dict = {
-        1: {
-            "module": "src.infrastructure.ui.views.import_view",
-            "class": "ImportView",
-            "use_session": False,
-            "presenter_attr": "_import_presenter",
-            "view_attr": "_import_view",
-            "tab_label": None,  # vista anidada dentro de _tab_import, no tab directo
-        },
-        2: {
-            "module": "src.infrastructure.ui.views.product_management_view",
-            "class": "ProductManagementView",
-            "use_session": True,
-            "presenter_attr": "_product_presenter",
-            "view_attr": "_product_management_view",
-            "tab_label": "Productos (F5)",
-        },
-        3: {
-            "module": "src.infrastructure.ui.views.stock_edit_view",
-            "class": "StockEditView",
-            "use_session": True,
-            "presenter_attr": "_stock_edit_presenter",
-            "view_attr": "_stock_edit_view",
-            "tab_label": "Editar Stock (F6)",
-        },
-        4: {
-            "module": "src.infrastructure.ui.views.stock_inject_view",
-            "class": "StockInjectView",
-            "use_session": True,
-            "presenter_attr": "_stock_inject_presenter",
-            "view_attr": "_stock_inject_view",
-            "tab_label": "Inyectar Stock (F7)",
-        },
-        6: {
-            "module": "src.infrastructure.ui.views.cash_history_view",
-            "class": "CashHistoryView",
-            "use_session": True,
-            "presenter_attr": "_cash_history_presenter",
-            "view_attr": "_cash_history_view",
-            "tab_label": "Historial de caja",
-        },
-    }
+    # Las vistas de admin (índice 2) viven dentro de AdminPanelView;
+    # el hot-reload directo de sub-vistas no está soportado en este mapa.
+    _DEV_RELOAD_MAP: dict = {}
 
     def _dev_reload_view(self) -> None:  # [DEV_ONLY]
         """Recarga en caliente la vista de la pestaña activa (Ctrl+R).
