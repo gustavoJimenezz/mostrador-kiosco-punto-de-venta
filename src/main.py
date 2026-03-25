@@ -113,11 +113,11 @@ def main() -> int:
     stock_inject_presenter = StockInjectPresenter(view=window.stock_inject_view)
     window.set_stock_inject_presenter(stock_inject_presenter)
 
-    sales_history_presenter = SalesHistoryPresenter(view=window.sales_history_view)
-    window.set_sales_history_presenter(sales_history_presenter)
-
     cash_history_presenter = CashHistoryPresenter(view=window.cash_history_view)
     window.set_cash_history_presenter(cash_history_presenter)
+
+    sales_history_presenter = SalesHistoryPresenter(view=window.sales_history_view)
+    window.set_sales_history_presenter(sales_history_presenter)
 
     cash_presenter = CashPresenter(view=window.cash_close_view)
     window.set_cash_presenter(cash_presenter)

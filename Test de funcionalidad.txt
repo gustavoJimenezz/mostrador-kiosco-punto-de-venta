@@ -61,18 +61,40 @@ agregar autenticacion
 
 ---------------------------------------------------------------------------------------------------------------------------------------------------------
 
-TO DO
+terminado
+
 resultado esperado: trasladar la pesta;a de cierrre de caja f10 a un submodal grande al apretar un boton:
 
 no mostrar la pesta;a de cierrre de caja f10, crear un boton al lado de de "Administrador" (que es el que habbilita las pesta;as de administrador) que se llame "Cierre de caja" que muestre una subventana modal grande, donde se pueda hacer el cierre de caja
- 
-una tabla de cierres de cajas
 
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+
+terminado
+
+una tabla de cierres de cajas
 tener un historial de cierrres de caja con todos los detalles de los cierres de caja para tener toda la contabilidad a mano
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+
+terminado : 
+
+se tiene que poder usar la conbinacion de un numero con el signo * para poder agregar mas de un mismo producto en el carrito  
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+terminado:
+
+
+mover la parte de monto inicial, a la ventana modal de atutenticacion, un input arriba de ingresar contrase;a, esta opcion se tiene que ver o estar habilitada cuando no hay una sesion iniciada o no se haya aplicado el monto inicial anteriormente, validando que la caja actual  no se cerro, 
+
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+terminado:
 
 una tabla de moviemientos manuales, que va representar gastos adicionales y consumos en el  dia
 
 
-mover la parte de monto inicial, a la ventana de atutenticacion, un input arriba de ingresar contrase;a, esta opcion se tiene que ver o estar habilitada cuando no hay una sesion iniciada o no se haya aplicado el monto inicial anteriormente
+terminado:
+tener uun boton de monto de gastos manual
 
-
+---------------------------------------------------------------------------------------------------------------------------------------------------------

@@ -24,77 +24,95 @@ from PySide6.QtWidgets import (
 )
 
 from src.domain.models.sale import Sale
+from src.infrastructure.ui.theme import PALETTE
 
 if TYPE_CHECKING:
     from src.domain.models.product import Product
 
-_DIALOG_QSS = """
-QDialog {
-    background-color: #111111;
-}
-QLabel#lbl_title {
-    color: #ffffff;
-    font-size: 22px;
+
+def _build_stylesheet() -> str:
+    """Genera el QSS del comprobante de venta usando la paleta centralizada del tema."""
+    p = PALETTE
+    return f"""
+QDialog, QWidget {{
+    background-color: {p.surface};
+    color: {p.text_primary};
+    font-family: "Segoe UI", "Ubuntu", sans-serif;
+}}
+QLabel#lbl_title {{
+    color: {p.text_primary};
+    font-size: 20px;
     font-weight: bold;
     letter-spacing: 3px;
-}
-QLabel#lbl_subtitle {
-    color: #888888;
-    font-size: 13px;
+}}
+QLabel#lbl_subtitle {{
+    color: {p.text_secondary};
+    font-size: 12px;
     letter-spacing: 1px;
-}
-QLabel#lbl_meta {
-    color: #aaaaaa;
+}}
+QLabel#lbl_meta {{
+    color: {p.text_secondary};
     font-size: 13px;
-}
-QFrame#separator {
-    color: #444444;
-}
-QTableWidget {
-    background-color: #1a1a1a;
-    color: #dddddd;
+}}
+QFrame#separator {{
+    color: {p.border};
+    background-color: {p.border};
+}}
+QTableWidget {{
+    background-color: {p.surface_card};
+    color: {p.text_primary};
     font-size: 14px;
-    border: none;
-    gridline-color: #333333;
-}
-QTableWidget::item {
+    border: 1px solid {p.border};
+    border-radius: 8px;
+    gridline-color: {p.surface};
+    outline: none;
+}}
+QTableWidget::item {{
     padding: 6px 8px;
-}
-QHeaderView::section {
-    background-color: #222222;
-    color: #888888;
+}}
+QTableWidget::item:selected {{
+    background-color: {p.primary_light};
+    color: {p.primary};
+}}
+QHeaderView::section {{
+    background-color: {p.surface};
+    color: {p.text_secondary};
     font-size: 12px;
     font-weight: bold;
     padding: 6px 8px;
     border: none;
-    border-bottom: 1px solid #444444;
-}
-QLabel#lbl_total_label {
-    color: #888888;
+    border-bottom: 1px solid {p.border};
+}}
+QLabel#lbl_total_label {{
+    color: {p.text_secondary};
     font-size: 18px;
-}
-QLabel#lbl_total_amount {
-    color: #00FF00;
+}}
+QLabel#lbl_total_amount {{
+    color: {p.success};
     font-size: 36px;
     font-weight: bold;
-}
-QLabel#lbl_payment {
-    color: #aaaaaa;
+}}
+QLabel#lbl_payment {{
+    color: {p.text_secondary};
     font-size: 14px;
-}
-QLabel#lbl_thanks {
-    color: #555555;
+}}
+QLabel#lbl_thanks {{
+    color: {p.text_hint};
     font-size: 13px;
     letter-spacing: 2px;
-}
-QPushButton#btn_close {
-    font-size: 16px;
+}}
+QPushButton#btn_close {{
+    font-size: 15px;
     font-weight: bold;
-    color: #111111;
-    background-color: #00CC00;
-    border-radius: 6px;
-    padding: 10px 48px;
-}
+    color: {p.text_on_primary};
+    background-color: {p.primary};
+    border-radius: 8px;
+    padding: 12px 48px;
+    border: none;
+}}
+QPushButton#btn_close:hover {{
+    background-color: {p.primary_hover};
+}}
 """
 
 
@@ -124,7 +142,7 @@ class SaleReceiptDialog(QDialog):
         self.setWindowTitle("Comprobante de Venta")
         self.setModal(True)
         self.setMinimumWidth(560)
-        self.setStyleSheet(_DIALOG_QSS)
+        self.setStyleSheet(_build_stylesheet())
 
         self._build_ui()
 

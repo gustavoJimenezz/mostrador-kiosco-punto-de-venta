@@ -206,9 +206,25 @@ class CashMovementsView(QWidget):
 
     def _build_ui(self) -> None:
         """Construye el layout de la vista por código."""
-        root = QVBoxLayout(self)
-        root.setContentsMargins(12, 12, 12, 12)
+        # Layout raíz centra horizontalmente el contenido
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        from src.infrastructure.ui.theme import PALETTE
+
+        container = QWidget()
+        container.setFixedWidth(720)
+        container.setStyleSheet(
+            f"QWidget {{ background-color: {PALETTE.surface_card};"
+            f" border-radius: 12px; }}"
+        )
+        root = QVBoxLayout(container)
+        root.setContentsMargins(20, 16, 20, 16)
         root.setSpacing(10)
+
+        outer.addStretch()
+        outer.addWidget(container)
+        outer.addStretch()
 
         # --- Sesión ------------------------------------------------
         grp_session = QGroupBox("Sesión activa")

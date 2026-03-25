@@ -184,13 +184,13 @@
         </widget>
        </item>
        <item>
-        <!-- Panel derecho: total + botones de acción (ancho fijo 400px) -->
+        <!-- Panel derecho: total + botones de acción (ancho fijo 450px) -->
         <widget class="QWidget" name="right_panel">
          <property name="minimumWidth">
-          <number>400</number>
+          <number>450</number>
          </property>
          <property name="maximumWidth">
-          <number>400</number>
+          <number>450</number>
          </property>
          <layout class="QVBoxLayout" name="right_layout">
           <property name="spacing">
@@ -223,18 +223,8 @@
            </widget>
           </item>
           <item>
-           <!-- Spacer flexible que empuja los botones al fondo -->
-           <spacer name="right_middle_spacer">
-            <property name="orientation">
-             <enum>Qt::Vertical</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>20</width>
-              <height>40</height>
-             </size>
-            </property>
-           </spacer>
+           <!-- Mini panel de historial de ventas del día (se reemplaza en main_window.py) -->
+           <widget class="QWidget" name="history_mini_placeholder"/>
           </item>
           <item>
            <!-- Bloque inferior anclado al piso: cobrar + nueva/cierre -->

@@ -6,7 +6,6 @@ y gestiona los workers QThread para operaciones de DB.
 
 Atajos de teclado (keyboard-first):
     F1  - Nueva venta (limpia carrito)
-    F2  - Historial de ventas (listado por fecha con detalle de ítems)
     F4  - Confirmar venta / Cobrar
     F5  - Gestión de productos
     F6  - Editar stock
@@ -171,15 +170,6 @@ class MainWindow(QMainWindow):
         self._cash_movements_view.set_presenter(presenter)
         presenter.set_movements_view(self._cash_movements_view)
 
-    def set_sales_history_presenter(self, presenter) -> None:
-        """Inyecta el SalesHistoryPresenter en la SalesHistoryView.
-
-        Args:
-            presenter: SalesHistoryPresenter ya configurado con la vista.
-        """
-        self._sales_history_presenter = presenter  # [DEV_ONLY] referencia para hot-reload
-        self._sales_history_view.set_presenter(presenter)
-
     def set_cash_history_presenter(self, presenter) -> None:
         """Inyecta el CashHistoryPresenter en la CashHistoryView.
 
@@ -189,15 +179,19 @@ class MainWindow(QMainWindow):
         self._cash_history_presenter = presenter  # [DEV_ONLY] referencia para hot-reload
         self._cash_history_view.set_presenter(presenter)
 
+    def set_sales_history_presenter(self, presenter) -> None:
+        """Inyecta el SalesHistoryPresenter en la SalesHistoryView.
+
+        Args:
+            presenter: SalesHistoryPresenter ya configurado con la vista.
+        """
+        self._sales_history_presenter = presenter  # [DEV_ONLY] referencia para hot-reload
+        self._sales_history_view.set_presenter(presenter)
+
     @property
     def cash_close_view(self):
         """Retorna la instancia de CashCloseView (pestaña F10)."""
         return self._cash_close_view
-
-    @property
-    def sales_history_view(self):
-        """Retorna la instancia de SalesHistoryView (pestaña F2)."""
-        return self._sales_history_view
 
     @property
     def cash_movements_view(self):
@@ -208,6 +202,11 @@ class MainWindow(QMainWindow):
     def cash_history_view(self):
         """Retorna la instancia de CashHistoryView (pestaña Historial de caja, solo ADMIN)."""
         return self._cash_history_view
+
+    @property
+    def sales_history_view(self):
+        """Retorna la instancia de SalesHistoryView (pestaña Historial de Ventas, solo ADMIN)."""
+        return self._sales_history_view
 
     # ------------------------------------------------------------------
     # ISaleView implementation
@@ -286,6 +285,7 @@ class MainWindow(QMainWindow):
             f" — Total: ${sale.total_amount.amount:,.2f}",
             5000,
         )
+        self._mini_history.refresh()
         self._barcode_input.setFocus()
 
     def show_change_dialog(self, total: Price) -> bool:
@@ -392,29 +392,29 @@ class MainWindow(QMainWindow):
         self._stock_inject_view = StockInjectView(session_factory=self._session_factory)
         self._tab_widget.addTab(self._stock_inject_view, "Inyectar Stock (F7)")
 
-        # Tab 5: Historial de ventas (F2) — construido programáticamente
-        from src.infrastructure.ui.views.sales_history_view import SalesHistoryView
-
-        self._sales_history_view = SalesHistoryView(
-            session_factory=self._session_factory
-        )
-        self._tab_widget.addTab(self._sales_history_view, "Historial (F2)")
-
-        # Tab 6: Movimientos manuales de caja (visible para todos) — construido programáticamente
+        # Tab 5: Movimientos manuales de caja (visible para todos) — construido programáticamente
         from src.infrastructure.ui.views.cash_movements_view import CashMovementsView
 
         self._cash_movements_view = CashMovementsView(
             session_factory=self._session_factory
         )
-        self._tab_widget.addTab(self._cash_movements_view, "Movimientos")
+        self._tab_widget.addTab(self._cash_movements_view, "Movimientos de caja")
 
-        # Tab 7: Historial de cierres de caja (solo ADMIN) — construido programáticamente
+        # Tab 6: Historial de cierres de caja (solo ADMIN) — construido programáticamente
         from src.infrastructure.ui.views.cash_history_view import CashHistoryView
 
         self._cash_history_view = CashHistoryView(
             session_factory=self._session_factory
         )
         self._tab_widget.addTab(self._cash_history_view, "Historial de caja")
+
+        # Tab 7: Historial de ventas (solo ADMIN) — construido programáticamente
+        from src.infrastructure.ui.views.sales_history_view import SalesHistoryView
+
+        self._sales_history_view = SalesHistoryView(
+            session_factory=self._session_factory
+        )
+        self._tab_widget.addTab(self._sales_history_view, "Historial de Ventas")
 
         # Diálogo modal de cierre de caja (F10) — no es una pestaña
         from src.infrastructure.ui.dialogs.cash_close_dialog import CashCloseDialog
@@ -451,6 +451,21 @@ class MainWindow(QMainWindow):
                 parent_layout.replaceWidget(original_total_label, self._total_widget)
             original_total_label.setParent(None)
         self._total_widget.set_total(Price("0"))
+
+        # --- Mini historial de ventas en panel derecho ---
+        from src.infrastructure.ui.widgets.mini_sales_history_widget import (
+            MiniSalesHistoryWidget,
+        )
+
+        history_placeholder = ui_widget.findChild(QWidget, "history_mini_placeholder")
+        self._mini_history = MiniSalesHistoryWidget(
+            session_factory=self._session_factory
+        )
+        if history_placeholder is not None:
+            ph_layout = history_placeholder.parent().layout()
+            if ph_layout is not None:
+                ph_layout.replaceWidget(history_placeholder, self._mini_history)
+            history_placeholder.setParent(None)
 
         btn_new = ui_widget.findChild(
             __import__("PySide6.QtWidgets", fromlist=["QPushButton"]).QPushButton,
@@ -544,8 +559,8 @@ class MainWindow(QMainWindow):
         self._elevate_use_case = use_case
 
     # Índices de las pestañas exclusivas de administrador.
-    # Tab 6 (Movimientos) es visible para todos los usuarios.
-    _ADMIN_TAB_INDICES = [1, 2, 3, 4, 7]
+    # Tab 5 (Movimientos) es visible para todos los usuarios.
+    _ADMIN_TAB_INDICES = [1, 2, 3, 4, 6, 7]
 
     def _lock_admin_tabs(self) -> None:
         """Oculta las pestañas de administrador y muestra el botón de acceso bloqueado."""
@@ -568,7 +583,6 @@ class MainWindow(QMainWindow):
     def _setup_shortcuts(self) -> None:
         """Registra los atajos de teclado globales F1-F12 y Escape."""
         QShortcut(QKeySequence("F1"), self).activated.connect(self._on_new_sale)
-        QShortcut(QKeySequence("F2"), self).activated.connect(self._toggle_search)
         QShortcut(QKeySequence("F4"), self).activated.connect(self._on_confirm_sale)
         QShortcut(QKeySequence("F5"), self).activated.connect(self._on_open_products)
         QShortcut(QKeySequence("F6"), self).activated.connect(self._on_open_stock_edit)
@@ -739,11 +753,11 @@ class MainWindow(QMainWindow):
         elif index == 4:
             self._stock_inject_view.on_view_activated()
         elif index == 5:
-            self._sales_history_view.on_view_activated()
-        elif index == 6:
             self._cash_movements_view.on_view_activated()
-        elif index == 7:
+        elif index == 6:
             self._cash_history_view.on_view_activated()
+        elif index == 7:
+            self._sales_history_view.on_view_activated()
 
     def _on_cash_close(self) -> None:
         """F10 / botón Cierre de caja: abre el modal de arqueo."""
@@ -800,11 +814,6 @@ class MainWindow(QMainWindow):
         if name_item:
             product_id = name_item.data(Qt.UserRole)
             self._presenter.on_remove_selected_item(product_id)
-
-    def _toggle_search(self) -> None:
-        """F2: navega al tab de historial de ventas."""
-        self._tab_widget.setCurrentIndex(5)
-        self._sales_history_view.on_view_activated()
 
     def _on_escape(self) -> None:
         """Escape: oculta resultados y devuelve el foco al barcode_input."""
@@ -906,14 +915,6 @@ class MainWindow(QMainWindow):
             "presenter_attr": "_stock_inject_presenter",
             "view_attr": "_stock_inject_view",
             "tab_label": "Inyectar Stock (F7)",
-        },
-        5: {
-            "module": "src.infrastructure.ui.views.sales_history_view",
-            "class": "SalesHistoryView",
-            "use_session": True,
-            "presenter_attr": "_sales_history_presenter",
-            "view_attr": "_sales_history_view",
-            "tab_label": "Historial (F2)",
         },
         6: {
             "module": "src.infrastructure.ui.views.cash_history_view",

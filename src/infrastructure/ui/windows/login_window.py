@@ -5,6 +5,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QApplication,
     QDialog,
     QFrame,
     QHBoxLayout,
@@ -51,13 +52,26 @@ class LoginWindow(QDialog):
         self._load_users()
 
     # ------------------------------------------------------------------
+    # Eventos de ciclo de vida
+    # ------------------------------------------------------------------
+
+    def showEvent(self, event) -> None:
+        """Centra la ventana en pantalla al mostrarse."""
+        super().showEvent(event)
+        screen = QApplication.primaryScreen().availableGeometry()
+        self.move(
+            screen.center().x() - self.width() // 2,
+            screen.center().y() - self.height() // 2,
+        )
+
+    # ------------------------------------------------------------------
     # Construcción de la UI
     # ------------------------------------------------------------------
 
     def _build_ui(self) -> None:
         """Construye el layout principal de la ventana."""
         root = QVBoxLayout(self)
-        root.setContentsMargins(40, 32, 40, 40)
+        root.setContentsMargins(40, 32, 40, 32)
         root.setSpacing(10)
 
         logo_label = QLabel()

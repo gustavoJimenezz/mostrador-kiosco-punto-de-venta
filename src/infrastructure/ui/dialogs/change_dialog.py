@@ -22,59 +22,79 @@ from PySide6.QtWidgets import (
 )
 
 from src.domain.models.price import Price
+from src.infrastructure.ui.theme import PALETTE
 
-_DIALOG_QSS = """
-QDialog {
-    background-color: #111111;
-}
-QLabel#lbl_header {
-    color: #888888;
+
+def _build_stylesheet() -> str:
+    """Genera el QSS del diálogo de cobro usando la paleta centralizada del tema."""
+    p = PALETTE
+    return f"""
+QDialog, QWidget {{
+    background-color: {p.surface};
+    color: {p.text_primary};
+    font-family: "Segoe UI", "Ubuntu", sans-serif;
+}}
+QLabel#lbl_header {{
+    color: {p.text_secondary};
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 2px;
+}}
+QLabel#lbl_total {{
+    color: {p.primary};
+    font-size: 48px;
+    font-weight: bold;
+}}
+QLabel#lbl_pays_label {{
+    color: {p.text_secondary};
     font-size: 18px;
-}
-QLabel#lbl_total {
-    color: #00FF00;
-    font-size: 48px;
+}}
+QLabel#lbl_change {{
+    color: {p.success};
+    font-size: 44px;
     font-weight: bold;
-}
-QLabel#lbl_pays_label {
-    color: #aaaaaa;
-    font-size: 20px;
-}
-QLabel#lbl_change {
-    color: #00FF00;
-    font-size: 48px;
-    font-weight: bold;
-}
-QLabel#lbl_change[insufficient="true"] {
-    color: #FF4444;
-}
-QLineEdit#amount_input {
+}}
+QLabel#lbl_change[insufficient="true"] {{
+    color: {p.danger};
+}}
+QLineEdit#amount_input {{
     font-size: 32px;
-    color: #ffffff;
-    background-color: #222222;
-    border: 2px solid #444444;
-    border-radius: 6px;
-    padding: 6px 12px;
-}
-QPushButton#btn_confirm {
-    font-size: 20px;
-    font-weight: bold;
-    color: #111111;
-    background-color: #00CC00;
-    border-radius: 6px;
-    padding: 10px 24px;
-}
-QPushButton#btn_confirm:disabled {
-    background-color: #336633;
-    color: #666666;
-}
-QPushButton#btn_cancel {
+    color: {p.text_primary};
+    background-color: {p.surface_card};
+    border: 2px solid {p.border};
+    border-radius: 8px;
+    padding: 8px 14px;
+}}
+QLineEdit#amount_input:focus {{
+    border: 2px solid {p.border_focus};
+}}
+QPushButton#btn_confirm {{
     font-size: 18px;
-    color: #aaaaaa;
-    background-color: #333333;
-    border-radius: 6px;
-    padding: 10px 24px;
-}
+    font-weight: bold;
+    color: {p.text_on_primary};
+    background-color: {p.success};
+    border-radius: 8px;
+    padding: 12px 28px;
+    border: none;
+}}
+QPushButton#btn_confirm:hover {{
+    background-color: {p.success_hover};
+}}
+QPushButton#btn_confirm:disabled {{
+    background-color: #a7f3d0;
+    color: {p.text_secondary};
+}}
+QPushButton#btn_cancel {{
+    font-size: 16px;
+    color: {p.btn_secondary_text};
+    background-color: {p.btn_secondary_bg};
+    border-radius: 8px;
+    padding: 12px 28px;
+    border: none;
+}}
+QPushButton#btn_cancel:hover {{
+    background-color: {p.btn_secondary_hover};
+}}
 """
 
 
@@ -105,7 +125,7 @@ class ChangeDialog(QDialog):
         self.setWindowTitle("Cobrar — Efectivo")
         self.setModal(True)
         self.setMinimumWidth(540)
-        self.setStyleSheet(_DIALOG_QSS)
+        self.setStyleSheet(_build_stylesheet())
 
         self._build_ui()
 
