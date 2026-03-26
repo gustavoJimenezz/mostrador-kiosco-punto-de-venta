@@ -4,15 +4,8 @@ scaner codigo: agrega productos con el scaner de barra de codigo
 Falta:
 Crear manual de usuario
 
-agregar logo, en las ventanas modal y en la ventana principal, la primera
-
-boton para cerrar las pesta;as del administrador
-
-
 Respaldo de carrito al cerrar el programa
 
-
-Texto TOTAL mas sincronico
 
 al cerrar el programa y si hay alguna venta sin terminar que quede guardado hasta que se abra el programa, por corrtes de luz o cierres involuntarios, y no perder la infromacion de la venta
 
@@ -98,3 +91,12 @@ terminado:
 tener uun boton de monto de gastos manual
 
 ---------------------------------------------------------------------------------------------------------------------------------------------------------
+terminado :
+
+boton para cerrar las pesta;as del administrador
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+
+terminado: 
+agregar logo, en las ventanas modal y en la ventana principal, la primera
+

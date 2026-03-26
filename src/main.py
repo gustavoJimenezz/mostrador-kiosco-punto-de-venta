@@ -42,6 +42,8 @@ from src.infrastructure.ui.presenters.login_presenter import LoginPresenter
 from src.infrastructure.ui.presenters.product_presenter import ProductPresenter
 from src.infrastructure.ui.presenters.sale_presenter import SalePresenter
 from src.infrastructure.ui.presenters.cash_history_presenter import CashHistoryPresenter
+from src.infrastructure.ui.presenters.calendar_presenter import CalendarPresenter
+from src.infrastructure.ui.presenters.category_presenter import CategoryPresenter
 from src.infrastructure.ui.presenters.sales_history_presenter import SalesHistoryPresenter
 from src.infrastructure.ui.presenters.stock_edit_presenter import StockEditPresenter
 from src.infrastructure.ui.presenters.stock_inject_presenter import StockInjectPresenter
@@ -118,6 +120,18 @@ def main() -> int:
 
     sales_history_presenter = SalesHistoryPresenter(view=window.sales_history_view)
     window.set_sales_history_presenter(sales_history_presenter)
+
+    category_presenter = CategoryPresenter(view=window.category_management_view)
+    window.set_category_presenter(category_presenter)
+
+    from pathlib import Path
+
+    _notes_path = Path.home() / ".config" / "kiosco-pos" / "calendar_notes.json"
+    calendar_presenter = CalendarPresenter(
+        view=window.calendar_view,
+        notes_file_path=_notes_path,
+    )
+    window.set_calendar_presenter(calendar_presenter)
 
     cash_presenter = CashPresenter(view=window.cash_close_view)
     window.set_cash_presenter(cash_presenter)

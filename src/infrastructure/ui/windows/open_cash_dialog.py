@@ -27,9 +27,11 @@ class OpenCashDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Abrir caja")
         self.setMinimumWidth(320)
-        self.setWindowFlags(Qt.Dialog | Qt.WindowCloseButtonHint)
-        from src.infrastructure.ui.theme import get_dialog_stylesheet
-        self.setStyleSheet(get_dialog_stylesheet())
+        from src.infrastructure.ui.theme import get_dialog_stylesheet, setup_rounded_modal
+        self._container = setup_rounded_modal(self)
+        self._container.setStyleSheet(
+            self._container.styleSheet() + get_dialog_stylesheet()
+        )
         self._build_ui()
 
     # ------------------------------------------------------------------
@@ -38,7 +40,7 @@ class OpenCashDialog(QDialog):
 
     def _build_ui(self) -> None:
         """Construye el layout del diálogo."""
-        root = QVBoxLayout(self)
+        root = QVBoxLayout(self._container)
         root.setContentsMargins(24, 24, 24, 20)
         root.setSpacing(16)
 

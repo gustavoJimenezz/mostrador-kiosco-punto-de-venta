@@ -8,8 +8,10 @@ Layout:
     1b. Info de formato    — QLabel HTML con resumen de formato CSV/Excel aceptado
     1c. Banner de estado   — QLabel dinámico (amarillo/rojo/verde según mapeo)
     2. Sección de mapeo    — QGroupBox (oculta hasta cargar archivo)
-       ├── _MappingTableWidget: 4 filas fijas (barcode, name, net_cost, category)
-       └── QTableView para preview (QStandardItemModel, primeras 100 filas)
+       ├── QHBoxLayout en paralelo:
+       │   ├── izquierda: _MappingTableWidget (4 filas fijas: barcode, name, net_cost, category)
+       │   └── derecha:   QTableView para preview (QStandardItemModel, primeras 100 filas)
+       └── margin_row: checkbox margen global + QDoubleSpinBox
     3. Footer de progreso  — QProgressBar (0–100) + QLabel multiline de estado
     4. QPushButton "Importar" — deshabilitado hasta mapeo mínimo válido
 
@@ -116,6 +118,7 @@ class _MappingTableWidget(QTableWidget):
             combo.addItem(_UNASSIGNED)
             combo.currentIndexChanged.connect(self.mapping_changed)
             self.setCellWidget(row_idx, 1, combo)
+            self.setRowHeight(row_idx, combo.sizeHint().height() + 6)
 
     def populate(self, headers: list[str]) -> None:
         """Repopula todos los combos con las columnas del archivo.
@@ -324,6 +327,26 @@ class ImportView(QWidget):
         root.setSpacing(12)
         root.setContentsMargins(16, 16, 16, 16)
 
+        # --- Texto descriptivo ---
+        from src.infrastructure.ui.theme import PALETTE
+
+        info = QLabel(
+            "<b>Importar lista de precios</b> — Importa o actualiza productos en masa "
+            "desde un archivo CSV o Excel.<br>"
+            "<span style='color:#0369a1;'>"
+            "<b>Seleccionar:</b> elige el archivo. "
+            "Mapeá las columnas del archivo a los campos del sistema "
+            "(se detectan automáticamente si el formato es conocido). "
+            "<b>Importar:</b> procesa todos los registros."
+            "</span>"
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet(
+            f"background:{PALETTE.info_surface}; border:1px solid {PALETTE.info_border};"
+            f" border-radius:6px; padding:8px 10px; color:{PALETTE.info_text}; font-size:12px;"
+        )
+        root.addWidget(info)
+
         # --- 1. Área de selección de archivo ---
         file_row = QHBoxLayout()
         file_row.setSpacing(8)
@@ -377,16 +400,43 @@ class ImportView(QWidget):
         self._mapping_group = QGroupBox("Mapeo de columnas")
         self._mapping_group.setVisible(False)
         mapping_layout = QVBoxLayout(self._mapping_group)
-        mapping_layout.setSpacing(4)
+        mapping_layout.setSpacing(8)
         mapping_layout.setContentsMargins(8, 12, 8, 8)
 
-        # Tabla de mapeo invertida (4 filas fijas)
-        self._mapping_widget = _MappingTableWidget()
-        self._mapping_widget.setMaximumHeight(160)
-        self._mapping_widget.mapping_changed.connect(self._on_mapping_changed)
-        mapping_layout.addWidget(self._mapping_widget)
+        # Fila horizontal: tabla de mapeo (izquierda) + preview (derecha)
+        cols_row = QHBoxLayout()
+        cols_row.setSpacing(12)
 
-        # Sección margen global
+        # Panel izquierdo — tabla de mapeo
+        left_panel = QVBoxLayout()
+        left_panel.setSpacing(4)
+        left_label = QLabel("Campo destino → Columna del archivo:")
+        left_label.setStyleSheet("font-weight: bold;")
+        left_panel.addWidget(left_label)
+        self._mapping_widget = _MappingTableWidget()
+        self._mapping_widget.mapping_changed.connect(self._on_mapping_changed)
+        left_panel.addWidget(self._mapping_widget)
+        cols_row.addLayout(left_panel, stretch=1)
+
+        # Panel derecho — preview del archivo
+        right_panel = QVBoxLayout()
+        right_panel.setSpacing(4)
+        right_label = QLabel("Preview del archivo (primeras 100 filas):")
+        right_label.setStyleSheet("font-weight: bold;")
+        right_panel.addWidget(right_label)
+        self._preview_table = QTableView()
+        self._preview_table.setSizePolicy(
+            QSizePolicy.Expanding, QSizePolicy.Expanding
+        )
+        self._preview_table.setAlternatingRowColors(True)
+        self._preview_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._preview_table.horizontalHeader().setStretchLastSection(True)
+        right_panel.addWidget(self._preview_table)
+        cols_row.addLayout(right_panel, stretch=3)
+
+        mapping_layout.addLayout(cols_row)
+
+        # Sección margen global (debajo de ambas columnas)
         margin_row = QHBoxLayout()
         margin_row.setSpacing(8)
 
@@ -407,15 +457,6 @@ class ImportView(QWidget):
         self._chk_global_margin.toggled.connect(self._spin_global_margin.setEnabled)
         mapping_layout.addLayout(margin_row)
 
-        # QTableView para preview
-        self._preview_table = QTableView()
-        self._preview_table.setSizePolicy(
-            QSizePolicy.Expanding, QSizePolicy.Expanding
-        )
-        self._preview_table.setAlternatingRowColors(True)
-        self._preview_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._preview_table.horizontalHeader().setStretchLastSection(True)
-        mapping_layout.addWidget(self._preview_table)
         root.addWidget(self._mapping_group)
 
         # --- 3. Footer de progreso + status ---

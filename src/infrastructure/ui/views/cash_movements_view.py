@@ -226,6 +226,22 @@ class CashMovementsView(QWidget):
         outer.addWidget(container)
         outer.addStretch()
 
+        # --- Texto descriptivo ------------------------------------
+        info = QLabel(
+            "<b>Movimientos de caja</b> — Registra ingresos y egresos manuales "
+            "durante la sesión activa de caja.<br>"
+            "<span style='color:#0369a1;'>"
+            "<b>+ Ingreso / − Egreso:</b> registran el monto con la descripción ingresada. "
+            "Solo disponibles con caja abierta."
+            "</span>"
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet(
+            f"background:{PALETTE.info_surface}; border:1px solid {PALETTE.info_border};"
+            f" border-radius:6px; padding:8px 10px; color:{PALETTE.info_text}; font-size:12px;"
+        )
+        root.addWidget(info)
+
         # --- Sesión ------------------------------------------------
         grp_session = QGroupBox("Sesión activa")
         v_session = QVBoxLayout(grp_session)

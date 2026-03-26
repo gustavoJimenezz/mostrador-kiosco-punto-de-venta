@@ -38,7 +38,10 @@ class CashCloseDialog(QDialog):
 
         self._cash_close_view = CashCloseView(session_factory=session_factory)
 
-        layout = QVBoxLayout(self)
+        from src.infrastructure.ui.theme import setup_rounded_modal
+        container = setup_rounded_modal(self)
+
+        layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 12)
         layout.addWidget(self._cash_close_view)
 

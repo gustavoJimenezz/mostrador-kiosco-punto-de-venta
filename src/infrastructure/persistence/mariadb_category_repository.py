@@ -83,3 +83,16 @@ class MariaDbCategoryRepository:
         stmt = select(categories_table).order_by(categories_table.c.name)
         rows = self._session.execute(stmt).all()
         return [Category(name=row.name, id=row.id) for row in rows]
+
+    def delete(self, category_id: int) -> None:
+        """Elimina una categoría por su ID.
+
+        Los productos asociados quedan con ``category_id = NULL`` gracias a la
+        restricción ``ON DELETE SET NULL`` definida en la tabla ``products``.
+
+        Args:
+            category_id: PK de la categoría a eliminar.
+        """
+        self._session.execute(
+            categories_table.delete().where(categories_table.c.id == category_id)
+        )

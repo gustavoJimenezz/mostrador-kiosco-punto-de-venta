@@ -264,9 +264,32 @@ class ProductManagementView(QWidget):
 
     def _build_ui(self) -> None:
         """Construye el layout completo de la vista programáticamente."""
-        root = QHBoxLayout(self)
+        from src.infrastructure.ui.theme import PALETTE
+
+        outer = QVBoxLayout(self)
+        outer.setSpacing(8)
+        outer.setContentsMargins(12, 12, 12, 12)
+
+        # --- Texto descriptivo ---
+        info = QLabel(
+            "<b>Inventario</b> — Consulta, crea, edita y elimina productos del catálogo.<br>"
+            "<span style='color:#0369a1;'>"
+            "<b>Buscar:</b> filtra por nombre en tiempo real. "
+            "<b>+ Nuevo:</b> limpia el formulario para agregar un producto. "
+            "<b>Guardar (F5):</b> guarda los cambios. "
+            "<b>Eliminar:</b> borra el producto seleccionado."
+            "</span>"
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet(
+            f"background:{PALETTE.info_surface}; border:1px solid {PALETTE.info_border};"
+            f" border-radius:6px; padding:8px 10px; color:{PALETTE.info_text}; font-size:12px;"
+        )
+        outer.addWidget(info)
+
+        root = QHBoxLayout()
         root.setSpacing(12)
-        root.setContentsMargins(12, 12, 12, 12)
+        outer.addLayout(root, stretch=1)
 
         # --- Panel izquierdo ---
         left_panel = QVBoxLayout()

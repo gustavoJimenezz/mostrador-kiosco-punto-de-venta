@@ -34,7 +34,7 @@ def _build_stylesheet() -> str:
     """Genera el QSS del comprobante de venta usando la paleta centralizada del tema."""
     p = PALETTE
     return f"""
-QDialog, QWidget {{
+QWidget {{
     background-color: {p.surface};
     color: {p.text_primary};
     font-family: "Segoe UI", "Ubuntu", sans-serif;
@@ -142,7 +142,12 @@ class SaleReceiptDialog(QDialog):
         self.setWindowTitle("Comprobante de Venta")
         self.setModal(True)
         self.setMinimumWidth(560)
-        self.setStyleSheet(_build_stylesheet())
+
+        from src.infrastructure.ui.theme import setup_rounded_modal
+        self._container = setup_rounded_modal(self)
+        self._container.setStyleSheet(
+            self._container.styleSheet() + _build_stylesheet()
+        )
 
         self._build_ui()
 
@@ -184,7 +189,7 @@ class SaleReceiptDialog(QDialog):
 
     def _build_ui(self) -> None:
         """Construye el layout del comprobante."""
-        layout = QVBoxLayout(self)
+        layout = QVBoxLayout(self._container)
         layout.setContentsMargins(32, 24, 32, 24)
         layout.setSpacing(12)
 

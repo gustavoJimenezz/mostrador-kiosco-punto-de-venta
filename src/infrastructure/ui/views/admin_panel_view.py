@@ -6,12 +6,13 @@ con navegación lateral izquierda (QListWidget) y área de contenido derecha
 QTabWidget principal.
 
 Secciones disponibles:
-    - Inventario (ProductManagementView)  — F5, selección por defecto
+    - Inventario (ProductManagementView)      — F5, selección por defecto
     - Historial de caja (CashHistoryView)
     - Historial de ventas (SalesHistoryView)
-    - Editar stock (StockEditView)         — F6
-    - Inyectar stock (StockInjectView)     — F7
-    - Importar (ImportView)                — F9
+    - Editar stock (StockEditView)             — F6
+    - Inyectar stock (StockInjectView)         — F7
+    - Importar (ImportView)                    — F9
+    - Categorías (CategoryManagementView)
 """
 
 from __future__ import annotations
@@ -36,6 +37,7 @@ _NAV_INDEX: dict[str, int] = {
     "stock_edit": 3,
     "stock_inject": 4,
     "import": 5,
+    "categories": 6,
 }
 
 _NAV_LABELS: list[tuple[str, str]] = [
@@ -45,6 +47,7 @@ _NAV_LABELS: list[tuple[str, str]] = [
     ("stock_edit",   "Editar stock"),
     ("stock_inject", "Inyectar stock"),
     ("import",       "Importar"),
+    ("categories",   "Categorías"),
 ]
 
 _NAV_LIST_STYLESHEET = """
@@ -99,6 +102,9 @@ class AdminPanelView(QWidget):
     def _build_ui(self) -> None:
         """Construye el layout horizontal: lista de nav + stacked widget."""
         from src.infrastructure.ui.views.cash_history_view import CashHistoryView
+        from src.infrastructure.ui.views.category_management_view import (
+            CategoryManagementView,
+        )
         from src.infrastructure.ui.views.import_view import ImportView
         from src.infrastructure.ui.views.product_management_view import (
             ProductManagementView,
@@ -142,6 +148,9 @@ class AdminPanelView(QWidget):
             session_factory=self._session_factory
         )
         self._import_view = ImportView()
+        self._category_view = CategoryManagementView(
+            session_factory=self._session_factory
+        )
 
         self._stack.addWidget(self._inventory_view)     # índice 0
         self._stack.addWidget(self._cash_history_view)  # índice 1
@@ -149,6 +158,7 @@ class AdminPanelView(QWidget):
         self._stack.addWidget(self._stock_edit_view)    # índice 3
         self._stack.addWidget(self._stock_inject_view)  # índice 4
         self._stack.addWidget(self._import_view)        # índice 5
+        self._stack.addWidget(self._category_view)      # índice 6
 
         layout.addWidget(self._stack, stretch=1)
 
@@ -262,3 +272,12 @@ class AdminPanelView(QWidget):
             ImportView instanciada dentro del panel.
         """
         return self._import_view
+
+    @property
+    def category_view(self):
+        """Retorna la vista de gestión de categorías (CategoryManagementView).
+
+        Returns:
+            CategoryManagementView instanciada dentro del panel.
+        """
+        return self._category_view

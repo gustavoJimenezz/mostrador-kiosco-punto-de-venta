@@ -63,6 +63,9 @@ class CashCloseReportDialog(QDialog):
         self._cash_close = cash_close
         self._report_data = report_data
 
+        from src.infrastructure.ui.theme import setup_rounded_modal
+        self._container = setup_rounded_modal(self)
+
         self._build_ui()
 
     # ------------------------------------------------------------------
@@ -71,7 +74,7 @@ class CashCloseReportDialog(QDialog):
 
     def _build_ui(self) -> None:
         """Construye el layout completo del informe."""
-        root = QVBoxLayout(self)
+        root = QVBoxLayout(self._container)
         root.setContentsMargins(16, 16, 16, 16)
         root.setSpacing(12)
 

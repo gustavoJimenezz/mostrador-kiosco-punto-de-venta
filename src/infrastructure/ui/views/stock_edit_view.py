@@ -192,6 +192,25 @@ class StockEditView(QWidget):
         root.setSpacing(10)
         root.setContentsMargins(12, 12, 12, 12)
 
+        # --- Texto descriptivo ---
+        from src.infrastructure.ui.theme import PALETTE
+
+        info = QLabel(
+            "<b>Editar stock</b> — Ajusta el stock de un producto de forma puntual: "
+            "agrega o retira unidades.<br>"
+            "<span style='color:#0369a1;'>"
+            "Buscar por código o nombre → seleccionar producto → "
+            "elegir operación (<b>Agregar</b> / <b>Retirar</b>) → "
+            "<b>Confirmar (Enter)</b>."
+            "</span>"
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet(
+            f"background:{PALETTE.info_surface}; border:1px solid {PALETTE.info_border};"
+            f" border-radius:6px; padding:8px 10px; color:{PALETTE.info_text}; font-size:12px;"
+        )
+        root.addWidget(info)
+
         # --- QGroupBox Buscar producto ---
         search_group = QGroupBox("Buscar producto")
         search_layout = QVBoxLayout(search_group)

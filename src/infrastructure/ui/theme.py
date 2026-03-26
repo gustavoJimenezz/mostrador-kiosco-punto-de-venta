@@ -460,13 +460,14 @@ def get_dialog_stylesheet() -> str:
     """QSS base para diálogos independientes (sin parent en MainWindow).
 
     Aplicar en ``LoginWindow``, ``OpenCashDialog``, ``AdminPinDialog``.
+    Se aplica sobre el container de ``setup_rounded_modal``, no sobre el QDialog.
 
     Returns:
         String QSS que establece fondo claro e inputs coherentes con el global.
     """
     p = PALETTE
     return f"""
-QDialog, QWidget {{
+QWidget {{
     background-color: {p.surface};
     color: {p.text_primary};
     font-family: "Segoe UI", "Ubuntu", sans-serif;
@@ -498,6 +499,48 @@ QDoubleSpinBox:focus, QSpinBox:focus {{
     border: 2px solid {p.border_focus};
 }}
 """
+
+
+def setup_rounded_modal(dialog, radius: int = 12) -> "QFrame":
+    """Configura un diálogo modal con esquinas redondeadas.
+
+    Elimina el marco del sistema operativo y envuelve el contenido en un
+    ``QFrame`` con ``border-radius``. El layout del diálogo debe construirse
+    sobre el QFrame retornado, no directamente sobre el QDialog.
+
+    Uso::
+
+        self._container = setup_rounded_modal(self)
+        root = QVBoxLayout(self._container)
+
+    Args:
+        dialog: El QDialog (o subclase) a configurar.
+        radius: Radio de las esquinas en píxeles. Default 12.
+
+    Returns:
+        QFrame contenedor sobre el que se debe construir el layout interno.
+    """
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QFrame, QVBoxLayout
+
+    dialog.setWindowFlag(Qt.WindowType.FramelessWindowHint)
+    dialog.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+
+    outer = QVBoxLayout(dialog)
+    outer.setContentsMargins(8, 8, 8, 8)
+    outer.setSpacing(0)
+
+    container = QFrame()
+    container.setObjectName("modal_container")
+    container.setStyleSheet(
+        f"QFrame#modal_container {{"
+        f" background-color: {PALETTE.surface};"
+        f" border-radius: {radius}px;"
+        f" border: 1px solid {PALETTE.border};"
+        f"}}"
+    )
+    outer.addWidget(container)
+    return container
 
 
 def get_btn_primary_stylesheet() -> str:
@@ -646,3 +689,29 @@ def get_cash_status_badge_stylesheet() -> str:
         f"color: {p.success}; font-size: 12px; font-weight: bold;"
         f" padding: 4px 8px; background: {p.success_light}; border-radius: 5px;"
     )
+
+
+# ── Paleta del Calendario (coherente con tema claro global) ──────────────────
+# Estas constantes se usan exclusivamente en CalendarView y CalendarDayCell.
+# Usan los mismos tokens de color que el resto de la aplicación.
+
+CAL_BG_BASE       = PALETTE.surface         # Fondo del widget raíz del calendario
+CAL_BG_CELL       = PALETTE.surface_card    # Fondo de cada celda de día
+CAL_BG_CELL_OTHER = PALETTE.surface         # Celda de día fuera del mes actual
+CAL_BORDER_CELL   = PALETTE.border          # Borde entre celdas (#e5e7eb)
+CAL_LINE_RULES    = "#d1d5db"               # Renglones horizontales (gris muy sutil)
+
+CAL_TEXT_DAY_NUM  = PALETTE.text_secondary  # Número de día (esquina superior derecha)
+CAL_TEXT_OTHER    = PALETTE.text_hint       # Número de día fuera del mes actual
+CAL_TEXT_NOTES    = PALETTE.text_primary    # Texto de notas dentro de cada celda
+CAL_TEXT_WEEKDAY  = PALETTE.text_secondary  # Encabezados Lu Ma Mi Ju Vi Sa Do
+
+CAL_TODAY_NUM_BG  = PALETTE.primary         # Fondo pastilla del número del día actual
+CAL_TODAY_NUM_FG  = PALETTE.text_on_primary # Texto del número del día actual
+CAL_TODAY_BORDER  = PALETTE.primary         # Borde izquierdo (3px) de la celda de hoy
+
+CAL_BTN_NAV_BG    = PALETTE.btn_secondary_bg    # Fondo botones ◀ ▶
+CAL_BTN_NAV_HOVER = PALETTE.primary             # Hover botones ◀ ▶
+CAL_BTN_NAV_FG    = PALETTE.btn_secondary_text  # Icono/texto botones ◀ ▶
+CAL_HEADER_BG     = PALETTE.surface_card        # Barra de encabezado (mes/año)
+CAL_MONTH_LABEL   = PALETTE.text_primary        # Texto del label de mes y año

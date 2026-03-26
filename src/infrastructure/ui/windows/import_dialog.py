@@ -167,12 +167,18 @@ class ImportDialog(QDialog):
         self.setModal(True)
         self.setMinimumWidth(420)
 
+        from src.infrastructure.ui.theme import get_dialog_stylesheet, setup_rounded_modal
+        self._container = setup_rounded_modal(self)
+        self._container.setStyleSheet(
+            self._container.styleSheet() + get_dialog_stylesheet()
+        )
+
         self._build_ui()
         self._presenter = ImportPresenter(self)
 
     def _build_ui(self) -> None:
         """Construye el layout del diálogo programáticamente."""
-        layout = QVBoxLayout(self)
+        layout = QVBoxLayout(self._container)
         layout.setSpacing(12)
 
         layout.addWidget(

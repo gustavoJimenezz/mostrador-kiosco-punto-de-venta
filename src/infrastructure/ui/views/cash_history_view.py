@@ -143,6 +143,24 @@ class CashHistoryView(QWidget):
         root.setContentsMargins(12, 12, 12, 12)
         root.setSpacing(10)
 
+        # --- Texto descriptivo ------------------------------------------
+        from src.infrastructure.ui.theme import PALETTE
+
+        info = QLabel(
+            "<b>Historial de caja</b> — Consulta los arqueos de caja en un rango de fechas.<br>"
+            "<span style='color:#0369a1;'>"
+            "<b>Buscar:</b> carga los cierres del período. "
+            "La tabla muestra ventas por método de pago, movimientos manuales, "
+            "monto contado y diferencia de caja."
+            "</span>"
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet(
+            f"background:{PALETTE.info_surface}; border:1px solid {PALETTE.info_border};"
+            f" border-radius:6px; padding:8px 10px; color:{PALETTE.info_text}; font-size:12px;"
+        )
+        root.addWidget(info)
+
         # --- Filtro de fechas ------------------------------------------
         grp_filter = QGroupBox("Filtro por fechas")
         row_filter = QHBoxLayout(grp_filter)

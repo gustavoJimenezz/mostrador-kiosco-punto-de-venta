@@ -180,6 +180,25 @@ class StockInjectView(QWidget):
         root.setSpacing(10)
         root.setContentsMargins(12, 12, 12, 12)
 
+        # --- Texto descriptivo ---
+        from src.infrastructure.ui.theme import PALETTE
+
+        info = QLabel(
+            "<b>Inyectar stock</b> — Carga rápida de stock optimizada para "
+            "escaneo con lector de barras.<br>"
+            "<span style='color:#0369a1;'>"
+            "Ingresá la <b>cantidad</b> primero, luego escaneá o escribí el "
+            "código/nombre y presioná Enter. "
+            "Si hay un único resultado, el stock se suma directamente."
+            "</span>"
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet(
+            f"background:{PALETTE.info_surface}; border:1px solid {PALETTE.info_border};"
+            f" border-radius:6px; padding:8px 10px; color:{PALETTE.info_text}; font-size:12px;"
+        )
+        root.addWidget(info)
+
         # --- QGroupBox Inyectar stock ---
         inject_group = QGroupBox("Inyectar stock")
         inject_row = QHBoxLayout(inject_group)

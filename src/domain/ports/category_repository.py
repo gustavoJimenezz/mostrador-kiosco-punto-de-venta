@@ -52,3 +52,14 @@ class CategoryRepository(Protocol):
             Lista de categorías (puede ser vacía).
         """
         ...
+
+    def delete(self, category_id: int) -> None:
+        """Elimina una categoría por su ID.
+
+        Los productos asociados quedan con ``category_id = NULL``
+        (restricción ON DELETE SET NULL en la tabla ``products``).
+
+        Args:
+            category_id: PK de la categoría a eliminar.
+        """
+        ...

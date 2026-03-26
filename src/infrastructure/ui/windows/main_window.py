@@ -188,6 +188,33 @@ class MainWindow(QMainWindow):
         self._sales_history_presenter = presenter  # [DEV_ONLY] referencia para hot-reload
         self._admin_panel_view.sales_history_view.set_presenter(presenter)
 
+    def set_category_presenter(self, presenter) -> None:
+        """Inyecta el CategoryPresenter en la CategoryManagementView del panel de administrador.
+
+        Args:
+            presenter: CategoryPresenter ya configurado con la vista.
+        """
+        self._category_presenter = presenter  # [DEV_ONLY] referencia para hot-reload
+        self._admin_panel_view.category_view.set_presenter(presenter)
+
+    def set_calendar_presenter(self, presenter) -> None:
+        """Inyecta el CalendarPresenter en la CalendarView.
+
+        Args:
+            presenter: CalendarPresenter ya configurado con la vista.
+        """
+        self._calendar_presenter = presenter  # [DEV_ONLY] referencia para hot-reload
+        self._calendar_view.set_presenter(presenter)
+
+    @property
+    def calendar_view(self):
+        """Retorna la CalendarView (pestaña Calendario).
+
+        Returns:
+            CalendarView instanciada en MainWindow.
+        """
+        return self._calendar_view
+
     @property
     def cash_close_view(self):
         """Retorna la instancia de CashCloseView (pestaña F10)."""
@@ -207,6 +234,11 @@ class MainWindow(QMainWindow):
     def sales_history_view(self):
         """Retorna la SalesHistoryView del panel de administrador."""
         return self._admin_panel_view.sales_history_view
+
+    @property
+    def category_management_view(self):
+        """Retorna la CategoryManagementView del panel de administrador."""
+        return self._admin_panel_view.category_view
 
     # ------------------------------------------------------------------
     # ISaleView implementation
@@ -376,7 +408,13 @@ class MainWindow(QMainWindow):
         )
         self._tab_widget.addTab(self._cash_movements_view, "Movimientos de caja")
 
-        # Tab 2: Panel de Administrador unificado (solo ADMIN)
+        # Tab 2: Calendario mensual (visible para todos los usuarios)
+        from src.infrastructure.ui.views.calendar_view import CalendarView
+
+        self._calendar_view = CalendarView(parent=self)
+        self._tab_widget.addTab(self._calendar_view, "Calendario")
+
+        # Tab 3: Panel de Administrador unificado (solo ADMIN)
         from src.infrastructure.ui.views.admin_panel_view import AdminPanelView
 
         self._admin_panel_view = AdminPanelView(session_factory=self._session_factory)
@@ -525,9 +563,9 @@ class MainWindow(QMainWindow):
         self._elevate_use_case = use_case
 
     # Índice del tab exclusivo de administrador.
-    # Tab 1 (Movimientos de caja) es visible para todos los usuarios.
-    # Tab 2 (Panel Administrador) agrupa todas las vistas admin.
-    _ADMIN_TAB_INDICES = [2]
+    # Tab 1 (Movimientos de caja) y Tab 2 (Calendario) son visibles para todos.
+    # Tab 3 (Panel Administrador) agrupa todas las vistas admin.
+    _ADMIN_TAB_INDICES = [3]
 
     def _lock_admin_tabs(self) -> None:
         """Oculta las pestañas de administrador y muestra el botón de acceso bloqueado."""
@@ -539,11 +577,12 @@ class MainWindow(QMainWindow):
         self._admin_btn.setStyleSheet(get_btn_corner_secondary_stylesheet())
 
     def _unlock_admin_tabs(self) -> None:
-        """Muestra las pestañas de administrador y actualiza el botón a desbloqueado."""
+        """Muestra las pestañas de administrador, navega al panel y actualiza el botón."""
         from src.infrastructure.ui.theme import get_btn_corner_primary_stylesheet
 
         for index in self._ADMIN_TAB_INDICES:
             self._tab_widget.setTabVisible(index, True)
+        self._tab_widget.setCurrentIndex(self._ADMIN_TAB_INDICES[0])
         self._admin_btn.setText("✕ Ocultar panel")
         self._admin_btn.setStyleSheet(get_btn_corner_primary_stylesheet())
 
@@ -678,7 +717,7 @@ class MainWindow(QMainWindow):
 
         if not AppSession.is_admin():
             return
-        self._tab_widget.setCurrentIndex(2)
+        self._tab_widget.setCurrentIndex(3)
         self._admin_panel_view.navigate_to("inventory")
 
     def _on_open_stock_edit(self) -> None:
@@ -687,7 +726,7 @@ class MainWindow(QMainWindow):
 
         if not AppSession.is_admin():
             return
-        self._tab_widget.setCurrentIndex(2)
+        self._tab_widget.setCurrentIndex(3)
         self._admin_panel_view.navigate_to("stock_edit")
 
     def _on_open_stock_inject(self) -> None:
@@ -696,7 +735,7 @@ class MainWindow(QMainWindow):
 
         if not AppSession.is_admin():
             return
-        self._tab_widget.setCurrentIndex(2)
+        self._tab_widget.setCurrentIndex(3)
         self._admin_panel_view.navigate_to("stock_inject")
 
     def _on_open_import(self) -> None:
@@ -705,7 +744,7 @@ class MainWindow(QMainWindow):
 
         if not AppSession.is_admin():
             return
-        self._tab_widget.setCurrentIndex(2)
+        self._tab_widget.setCurrentIndex(3)
         self._admin_panel_view.navigate_to("import")
 
     def _on_tab_changed(self, index: int) -> None:
@@ -713,10 +752,13 @@ class MainWindow(QMainWindow):
 
         Args:
             index: Índice del tab activado.
+                   0=POS, 1=Movimientos de caja, 2=Calendario, 3=Panel Administrador.
         """
         if index == 1:
             self._cash_movements_view.on_view_activated()
         elif index == 2:
+            self._calendar_view.on_view_activated()
+        elif index == 3:
             self._admin_panel_view.on_view_activated()
 
     def _on_cash_close(self) -> None:
@@ -843,7 +885,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     #: Mapa de índice de pestaña → configuración de recarga.
-    # Las vistas de admin (índice 2) viven dentro de AdminPanelView;
+    # Las vistas de admin (índice 3) viven dentro de AdminPanelView;
     # el hot-reload directo de sub-vistas no está soportado en este mapa.
     _DEV_RELOAD_MAP: dict = {}
 
