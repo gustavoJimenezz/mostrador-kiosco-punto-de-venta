@@ -27,6 +27,7 @@ build/
 # Nuitka output
 *.exe
 *.dist/
+*.build/
 
 # IDE
 .idea/
