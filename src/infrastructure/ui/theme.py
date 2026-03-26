@@ -501,12 +501,12 @@ QDoubleSpinBox:focus, QSpinBox:focus {{
 """
 
 
-def setup_rounded_modal(dialog, radius: int = 12) -> "QFrame":
-    """Configura un diálogo modal con esquinas redondeadas.
+def setup_rounded_modal(dialog, radius: int = 12) -> "QWidget":
+    """Configura un diálogo modal usando la barra de título nativa del OS.
 
-    Elimina el marco del sistema operativo y envuelve el contenido en un
-    ``QFrame`` con ``border-radius``. El layout del diálogo debe construirse
-    sobre el QFrame retornado, no directamente sobre el QDialog.
+    Mantiene la API original (retorna un QWidget sobre el que los diálogos
+    construyen su layout), pero usa el marco estándar del sistema operativo
+    en lugar de un marco personalizado sin bordes.
 
     Uso::
 
@@ -515,32 +515,22 @@ def setup_rounded_modal(dialog, radius: int = 12) -> "QFrame":
 
     Args:
         dialog: El QDialog (o subclase) a configurar.
-        radius: Radio de las esquinas en píxeles. Default 12.
+        radius: Conservado por compatibilidad de firma; no tiene efecto.
 
     Returns:
-        QFrame contenedor sobre el que se debe construir el layout interno.
+        QWidget área de contenido sobre el que se debe construir el layout.
     """
-    from PySide6.QtCore import Qt
-    from PySide6.QtWidgets import QFrame, QVBoxLayout
-
-    dialog.setWindowFlag(Qt.WindowType.FramelessWindowHint)
-    dialog.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+    from PySide6.QtWidgets import QVBoxLayout, QWidget
 
     outer = QVBoxLayout(dialog)
-    outer.setContentsMargins(8, 8, 8, 8)
+    outer.setContentsMargins(0, 0, 0, 0)
     outer.setSpacing(0)
 
-    container = QFrame()
-    container.setObjectName("modal_container")
-    container.setStyleSheet(
-        f"QFrame#modal_container {{"
-        f" background-color: {PALETTE.surface};"
-        f" border-radius: {radius}px;"
-        f" border: 1px solid {PALETTE.border};"
-        f"}}"
-    )
-    outer.addWidget(container)
-    return container
+    content_area = QWidget()
+    content_area.setObjectName("modal_content")
+    outer.addWidget(content_area)
+
+    return content_area
 
 
 def get_btn_primary_stylesheet() -> str:

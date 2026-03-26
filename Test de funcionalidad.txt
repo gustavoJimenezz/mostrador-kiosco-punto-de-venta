@@ -100,3 +100,15 @@ boton para cerrar las pesta;as del administrador
 terminado: 
 agregar logo, en las ventanas modal y en la ventana principal, la primera
 
+terminado: 
+calendario de proveedores
+
+terminado:
+al apreatar el boton administrador que se redirija al panel de administrador
+
+terminado:
+ventanas modal sin exquinas todos con bordes
+
+terminado:
+en el cierre de caja se tiene que registrar el monto total de margen de ganancia, como dato 
+plan: tippo de calendario ppara poder tener registrado los proveedores, con el monto estimado de pago y la fecha que tiene que venir (esta opcion tiene que estar preparado para evoluiciones)

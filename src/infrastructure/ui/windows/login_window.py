@@ -43,7 +43,6 @@ class LoginWindow(QDialog):
 
         self.setWindowTitle("Mostrador POS — Iniciar sesión")
         self.setMinimumSize(420, 460)
-        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint)
 
         from src.infrastructure.ui.theme import get_dialog_stylesheet, setup_rounded_modal
         self._container = setup_rounded_modal(self)
