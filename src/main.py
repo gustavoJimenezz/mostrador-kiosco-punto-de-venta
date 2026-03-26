@@ -1,6 +1,7 @@
 """Composition Root: punto de entrada de la aplicación POS.
 
 Conecta todas las capas de la arquitectura hexagonal e inicia Qt:
+    - Verifica y lanza el proceso MariaDB portable (si aplica).
     - Configura el mapeo ORM imperativo.
     - Crea el engine MariaDB y la session_factory.
     - Muestra LoginWindow; si la autenticación es exitosa, abre MainWindow.
@@ -14,6 +15,7 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 from PySide6.QtWidgets import QApplication, QDialog
@@ -35,6 +37,7 @@ from src.infrastructure.persistence.mariadb_product_repository import (
 from src.infrastructure.persistence.mariadb_user_repository import (
     MariadbUserRepository,
 )
+from src.infrastructure.database_launcher import launch_mariadb
 from src.infrastructure.ui.app_config import configure_high_dpi, get_app_icon
 from src.infrastructure.ui.presenters.cash_presenter import CashPresenter
 from src.infrastructure.ui.presenters.import_presenter import ImportPresenter
@@ -51,6 +54,11 @@ from src.infrastructure.ui.windows.login_window import LoginWindow
 from src.infrastructure.ui.windows.main_window import MainWindow
 
 
+_PROJECT_ROOT = Path(__file__).parent.parent
+_VENDOR_PATH = _PROJECT_ROOT / "vendor" / "mariadb"
+_CONFIG_PATH = _PROJECT_ROOT / "config" / "database.ini"
+
+
 def main() -> int:
     """Punto de entrada principal de la aplicación.
 
@@ -59,15 +67,30 @@ def main() -> int:
     """
     load_dotenv()
 
+    # --- Paso 1: orquestar MariaDB antes de crear QApplication --------------
+    # En Windows (bundle), inicia mysqld.exe si no está corriendo.
+    # En Linux/desarrollo, verifica que la DB externa ya esté disponible.
+    database_url = os.environ.get(
+        "DATABASE_URL",
+        "mysql+pymysql://root:@localhost:3306/kiosco_pos",
+    )
+    db_ready = launch_mariadb(
+        vendor_path=_VENDOR_PATH,
+        config_path=_CONFIG_PATH,
+        connection_url=database_url,
+    )
+    if not db_ready:
+        print(  # noqa: T201
+            "No se pudo iniciar el motor de datos. Verifique permisos de carpeta.",
+            file=sys.stderr,
+        )
+        return 1
+
     # Debe ejecutarse antes de instanciar QApplication.
     configure_high_dpi()
 
     configure_mappings()
 
-    database_url = os.environ.get(
-        "DATABASE_URL",
-        "mysql+pymysql://root:@localhost:3306/kiosco_pos",
-    )
     engine = create_mariadb_engine(database_url)
     session_factory = create_session_factory(engine)
 
