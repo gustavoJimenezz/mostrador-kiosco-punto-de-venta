@@ -33,3 +33,8 @@ build/
 .idea/
 .vscode/
 *.swp
+
+# MariaDB Portable (binarios no se suben al repositorio)
+# Usando vendor/mariadb/* en lugar de vendor/mariadb/ para que la excepción funcione
+vendor/mariadb/*
+!vendor/mariadb/my.ini
