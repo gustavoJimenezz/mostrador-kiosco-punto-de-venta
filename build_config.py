@@ -69,8 +69,11 @@ WINDOWS_UAC_ADMIN: bool = True
 #: Mostrar estadísticas de memoria durante la compilación.
 SHOW_MEMORY: bool = True
 
-#: Nivel de optimización de Nuitka (``0`` = sin optimización, ``2`` = máxima).
-OPTIMIZATION_LEVEL: int = 2
+#: Nivel de optimización de Nuitka (``0`` = sin optimización, ``2`` = máxima con LTO).
+#: NOTA: Nivel 2 activa --lto=yes (Link Time Optimization), lo que puede causar
+#: "LLVM ERROR: out of memory" al linkear cientos de objetos (ej: PySide6).
+#: Usar nivel 1 para compilación normal sin LTO.
+OPTIMIZATION_LEVEL: int = 1
 
 #: Deshabilitar la consola de Windows (la app es GUI pura; no se necesita CMD).
 DISABLE_CONSOLE: bool = True

@@ -54,7 +54,15 @@ from src.infrastructure.ui.windows.login_window import LoginWindow
 from src.infrastructure.ui.windows.main_window import MainWindow
 
 
-_PROJECT_ROOT = Path(__file__).parent.parent
+# En Nuitka compilado, sys.executable es el POS.exe y __file__ no es confiable
+# para resolver rutas de recursos. Usamos sys.executable cuando está frozen.
+if getattr(sys, "frozen", False):
+    # Compilado: los recursos están junto al ejecutable
+    _PROJECT_ROOT = Path(sys.executable).parent
+else:
+    # Desarrollo: src/main.py → subir 2 niveles llega a la raíz del proyecto
+    _PROJECT_ROOT = Path(__file__).parent.parent
+
 _VENDOR_PATH = _PROJECT_ROOT / "vendor" / "mariadb"
 _CONFIG_PATH = _PROJECT_ROOT / "config" / "database.ini"
 
@@ -171,4 +179,10 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    import traceback
+    _log = Path.home() / "Desktop" / "pos_error.log"
+    try:
+        sys.exit(main())
+    except Exception:
+        _log.write_text(traceback.format_exc(), encoding="utf-8")
+        sys.exit(1)

@@ -82,7 +82,7 @@ Este script:
 build.bat
 ```
 
-Compila `src/main.py` con Nuitka y genera `dist\POS.dist\` (carpeta con el ejecutable y todas sus dependencias).
+Compila `src/main.py` con Nuitka y genera `dist\main.dist\` (carpeta con el ejecutable y todas sus dependencias).
 
 **Este paso hay que repetirlo cada vez que se modifique el código fuente.**
 
@@ -119,7 +119,7 @@ dist\Instalar_Kiosco_POS.exe
 
 ```
 dist\
-├── POS.dist\                  ← generado por build.bat (Paso 4)
+├── main.dist\                  ← generado por build.bat (Paso 4)
 │   ├── POS.exe
 │   └── ... (dependencias)
 └── Instalar_Kiosco_POS.exe    ← instalador final (Paso 5)
@@ -148,7 +148,7 @@ El archivo `Instalar_Kiosco_POS.exe` es lo que se entrega al cliente. No necesit
 | `'poetry' no se reconoce` | Poetry no está en el PATH | Reiniciar CMD/PowerShell después de instalar Poetry |
 | `Nuitka no encontrado` | Dependencias no instaladas | Ejecutar `poetry install` |
 | Error de compilador C durante Nuitka | Visual Studio Build Tools no instalado | Instalar "Desarrollo de escritorio con C++" |
-| `No se encontró dist\POS.dist` al ejecutar `iscc` | `build.bat` no se ejecutó antes | Ejecutar el Paso 4 primero |
+| `No se encontró dist\main.dist` al ejecutar `iscc` | `build.bat` no se ejecutó antes | Ejecutar el Paso 4 primero |
 | `No se encontró vendor\mariadb` al ejecutar `iscc` | `prepare_vendor.bat` no se ejecutó | Ejecutar el Paso 3 primero (como Administrador) |
 | `'iscc' no se reconoce` | Inno Setup no está en el PATH | Usar la ruta completa: `"C:\Program Files (x86)\Inno Setup 6\iscc.exe"` |
 | Error de descarga en `prepare_vendor.bat` | Sin conexión a internet | Verificar conexión; la descarga es solo la primera vez |

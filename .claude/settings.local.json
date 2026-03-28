@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir:*)",
+      "Bash(scriptsprepare_vendor.bat)",
+      "Bash(cmd.exe /c scriptsprepare_vendor.bat)",
+      "Bash(cmd //c scripts\\prepare_vendor.bat)",
+      "Bash(cmd /c \"C:\\\\Users\\\\gusta\\\\Desktop\\\\kiosco\\\\mostrador-kiosco-punto-de-venta\\\\scripts\\\\prepare_vendor.bat\" 2>&1)",
+      "Bash(cmd.exe /c \"cd /d C:\\\\Users\\\\gusta\\\\Desktop\\\\kiosco\\\\mostrador-kiosco-punto-de-venta && scripts\\\\prepare_vendor.bat\" 2>&1)",
+      "Bash(cmd /c \"xcopy /E /I /Y \\\\\"C:\\\\Users\\\\gusta\\\\Desktop\\\\kiosco\\\\mostrador-kiosco-punto-de-venta\\\\vendor\\\\mariadb\\\\\" \\\\\"C:\\\\Users\\\\gusta\\\\Desktop\\\\kiosco\\\\mostrador-kiosco-punto-de-venta\\\\dist\\\\main.dist\\\\vendor\\\\mariadb\\\\\"\")",
+      "Bash(powershell -Command \"New-Item -ItemType Directory -Force -Path 'C:\\\\Users\\\\gusta\\\\Desktop\\\\kiosco\\\\mostrador-kiosco-punto-de-venta\\\\dist\\\\main.dist\\\\config' | Out-Null; Copy-Item 'C:\\\\Users\\\\gusta\\\\Desktop\\\\kiosco\\\\mostrador-kiosco-punto-de-venta\\\\config\\\\database.ini' 'C:\\\\Users\\\\gusta\\\\Desktop\\\\kiosco\\\\mostrador-kiosco-punto-de-venta\\\\dist\\\\main.dist\\\\config\\\\database.ini' -Force; Write-Host 'OK'\")",
+      "Bash(powershell -Command \"\nCopy-Item 'C:\\\\Users\\\\gusta\\\\Desktop\\\\kiosco\\\\mostrador-kiosco-punto-de-venta\\\\dist\\\\main.dist\\\\vendor\\\\mariadb' 'C:\\\\Users\\\\gusta\\\\Desktop\\\\kiosco\\\\mostrador-kiosco-punto-de-venta\\\\dist\\\\vendor\\\\mariadb' -Recurse -Force\nNew-Item -ItemType Directory -Force -Path 'C:\\\\Users\\\\gusta\\\\Desktop\\\\kiosco\\\\mostrador-kiosco-punto-de-venta\\\\dist\\\\config' | Out-Null\nCopy-Item 'C:\\\\Users\\\\gusta\\\\Desktop\\\\kiosco\\\\mostrador-kiosco-punto-de-venta\\\\config\\\\database.ini' 'C:\\\\Users\\\\gusta\\\\Desktop\\\\kiosco\\\\mostrador-kiosco-punto-de-venta\\\\dist\\\\config\\\\database.ini' -Force\nWrite-Host 'OK'\n\")",
+      "Bash(tasklist)",
+      "Bash(grep -i \"\\\\.ui\\\\|main_window\\\\|login\" find C:UsersgustaDesktopkioscomostrador-kiosco-punto-de-ventadistmain.dist -name *.ui)",
+      "Bash(powershell -Command \"Select-String -Path 'C:\\\\Users\\\\gusta\\\\Desktop\\\\kiosco\\\\mostrador-kiosco-punto-de-venta\\\\.venv\\\\Lib\\\\site-packages\\\\sqlalchemy\\\\orm\\\\strategies.py' -Pattern 'strategy_for|UndeferredColumn|deferred=False' | Select-Object -First 20 | Format-Table LineNumber, Line -AutoSize\")",
+      "Bash(powershell -Command \"Get-Content 'C:\\\\Users\\\\gusta\\\\Desktop\\\\kiosco\\\\mostrador-kiosco-punto-de-venta\\\\.venv\\\\Lib\\\\site-packages\\\\sqlalchemy\\\\orm\\\\strategies.py' | Select-Object -Index \\(190..205\\)\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

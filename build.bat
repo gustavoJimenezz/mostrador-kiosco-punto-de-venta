@@ -82,6 +82,12 @@ REM --- Argumento de línea de comando sobreescribe BUILD_MODE -----------------
 if "%1"=="--onefile"    set BUILD_MODE=onefile
 if "%1"=="--standalone" set BUILD_MODE=standalone
 
+REM --- Calcular nombre real de carpeta que genera Nuitka ---------------------
+REM Nuitka nombra la carpeta segun el script de entrada (main.py -> main.dist),
+REM no segun --output-filename. Esto se usa para el paso de copia post-build.
+for %%F in (%ENTRY_POINT%) do set DIST_FOLDER=%%~nF.dist
+set DIST_PATH=%OUTPUT_DIR%\%DIST_FOLDER%
+
 echo     APP_NAME    : %APP_NAME%
 echo     VERSION     : %APP_VERSION%
 echo     ENTRY_POINT : %ENTRY_POINT%
@@ -99,9 +105,15 @@ if %errorlevel% neq 0 (
 echo     OK
 echo.
 
-REM --- Crear directorio de salida --------------------------------------------
+REM --- Crear directorio de salida (y limpiar build anterior) ----------------
 echo [3/5] Preparando directorio de salida: %OUTPUT_DIR%\...
 if not exist "%OUTPUT_DIR%" mkdir "%OUTPUT_DIR%"
+if "%BUILD_MODE%"=="standalone" (
+    if exist "%DIST_PATH%" (
+        echo     Limpiando build anterior: %DIST_PATH%\...
+        rd /s /q "%DIST_PATH%"
+    )
+)
 echo     OK
 echo.
 
@@ -136,12 +148,19 @@ REM Nivel de optimizacion
 set NUITKA_FLAGS=%NUITKA_FLAGS% --python-flag=no_asserts
 if "%OPT_LEVEL%"=="2" (
     set NUITKA_FLAGS=%NUITKA_FLAGS% --lto=yes
+) else (
+    set NUITKA_FLAGS=%NUITKA_FLAGS% --lto=no
 )
 
 REM Deshabilitar consola (app GUI pura)
 if "%NO_CONSOLE%"=="true" (
     set NUITKA_FLAGS=%NUITKA_FLAGS% --windows-console-mode=disable
 )
+
+REM SQLAlchemy usa decoradores que registran estrategias ORM al definir clases.
+REM Nuitka elimina ese codigo como "muerto". Incluir el paquete completo evita esto.
+set NUITKA_FLAGS=%NUITKA_FLAGS% --include-package=sqlalchemy.orm
+set NUITKA_FLAGS=%NUITKA_FLAGS% --include-package=sqlalchemy.dialects.mysql
 
 REM Metadatos del ejecutable
 set NUITKA_FLAGS=%NUITKA_FLAGS% --product-name="%APP_NAME%"
@@ -173,6 +192,45 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
+REM --- Copiar recursos al output (solo en modo standalone) ------------------
+if "%BUILD_MODE%"=="standalone" (
+    echo.
+    echo [Post-build] Copiando recursos a %DIST_PATH%\...
+
+    REM vendor\mariadb (motor de base de datos portable)
+    if not exist "vendor\mariadb\bin\mysqld.exe" (
+        echo ADVERTENCIA: vendor\mariadb no encontrado o incompleto.
+        echo              Ejecutar scripts\prepare_vendor.bat antes de compilar.
+    ) else (
+        powershell -NoProfile -Command ^
+            "Copy-Item -Path 'vendor\mariadb' -Destination '%DIST_PATH%\vendor\mariadb' -Recurse -Force"
+        if !errorlevel! neq 0 (
+            echo ERROR: Fallo la copia de vendor\mariadb.
+            exit /b 1
+        )
+        echo     OK — vendor\mariadb copiado.
+    )
+
+    REM config\database.ini (parametros de conexion a MariaDB)
+    if not exist "config\database.ini" (
+        echo ADVERTENCIA: config\database.ini no encontrado. La app no podra conectar a la DB.
+    ) else (
+        if not exist "%DIST_PATH%\config" mkdir "%DIST_PATH%\config"
+        copy /Y "config\database.ini" "%DIST_PATH%\config\database.ini" >nul
+        if !errorlevel! neq 0 (
+            echo ERROR: Fallo la copia de config\database.ini.
+            exit /b 1
+        )
+        echo     OK — config\database.ini copiado.
+    )
+
+    REM .env (variables de entorno: DATABASE_URL y otros)
+    if exist ".env" (
+        copy /Y ".env" "%DIST_PATH%\.env" >nul
+        echo     OK — .env copiado.
+    )
+)
+
 set END_TIME=%TIME%
 
 echo.
@@ -184,8 +242,8 @@ echo  Fin    : %END_TIME%
 if "%BUILD_MODE%"=="onefile" (
     echo  Salida : %OUTPUT_DIR%\%APP_NAME%.exe
 ) else (
-    echo  Salida : %OUTPUT_DIR%\%APP_NAME%.dist\
-    echo  Nota   : distribuir toda la carpeta %APP_NAME%.dist\, no solo el .exe
+    echo  Salida : %DIST_PATH%\
+    echo  Nota   : distribuir toda la carpeta %DIST_FOLDER%\, no solo el .exe
 )
 echo =============================================================================
 echo.
