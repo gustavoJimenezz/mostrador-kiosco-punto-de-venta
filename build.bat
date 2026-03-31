@@ -157,10 +157,13 @@ if "%NO_CONSOLE%"=="true" (
     set NUITKA_FLAGS=%NUITKA_FLAGS% --windows-console-mode=disable
 )
 
-REM SQLAlchemy usa decoradores que registran estrategias ORM al definir clases.
-REM Nuitka elimina ese codigo como "muerto". Incluir el paquete completo evita esto.
-set NUITKA_FLAGS=%NUITKA_FLAGS% --include-package=sqlalchemy.orm
-set NUITKA_FLAGS=%NUITKA_FLAGS% --include-package=sqlalchemy.dialects.mysql
+REM SQLAlchemy y pymysql: NO compilar con Nuitka.
+REM SQLAlchemy usa decoradores @strategy_for para registrar estrategias ORM
+REM en tiempo de importacion; compilarlos a C++ rompe ese mecanismo dinamico.
+REM Se excluyen de Nuitka y se copian como bytecode Python puro en post-build.
+set NUITKA_FLAGS=%NUITKA_FLAGS% --nofollow-import-to=sqlalchemy
+set NUITKA_FLAGS=%NUITKA_FLAGS% --nofollow-import-to=pymysql
+set NUITKA_FLAGS=%NUITKA_FLAGS% --no-deployment-flag=excluded-module-usage
 
 REM Metadatos del ejecutable
 set NUITKA_FLAGS=%NUITKA_FLAGS% --product-name="%APP_NAME%"
@@ -228,6 +231,71 @@ if "%BUILD_MODE%"=="standalone" (
     if exist ".env" (
         copy /Y ".env" "%DIST_PATH%\.env" >nul
         echo     OK — .env copiado.
+    )
+
+    REM src\infrastructure\ui\windows\*.ui (interfaces Qt Designer)
+    REM QUiLoader las carga en runtime via Path(__file__).parent; deben estar
+    REM en la misma ruta relativa dentro del dist o el programa crashea al abrir
+    REM MainWindow (RuntimeError: No se pudo cargar la interfaz).
+    if exist "src\infrastructure\ui\windows\main_window.ui" (
+        if not exist "%DIST_PATH%\src\infrastructure\ui\windows" (
+            mkdir "%DIST_PATH%\src\infrastructure\ui\windows"
+        )
+        copy /Y "src\infrastructure\ui\windows\main_window.ui" ^
+            "%DIST_PATH%\src\infrastructure\ui\windows\main_window.ui" >nul
+        if !errorlevel! neq 0 (
+            echo ERROR: Fallo la copia de main_window.ui.
+            exit /b 1
+        )
+        echo     OK — main_window.ui copiado.
+    ) else (
+        echo ADVERTENCIA: src\infrastructure\ui\windows\main_window.ui no encontrado.
+    )
+
+    REM src\infrastructure\ui\assets\ (logo e iconos de la app)
+    REM get_app_icon() usa Path(__file__).parent / "assets"; sin esto
+    REM la app arranca sin icono (fallo silencioso, no crashea).
+    if exist "src\infrastructure\ui\assets" (
+        powershell -NoProfile -Command ^
+            "Copy-Item -Path 'src\infrastructure\ui\assets' -Destination '%DIST_PATH%\src\infrastructure\ui\assets' -Recurse -Force"
+        if !errorlevel! neq 0 (
+            echo ERROR: Fallo la copia de assets\.
+            exit /b 1
+        )
+        echo     OK — assets\ copiado.
+    ) else (
+        echo ADVERTENCIA: src\infrastructure\ui\assets no encontrado, la app correra sin icono.
+    )
+
+    REM sqlalchemy y pymysql: copiar desde el venv como bytecode Python puro.
+    REM Nuitka no puede compilarlos a C++ (sqlalchemy rompe sus estrategias ORM;
+    REM pymysql es dependencia directa de sqlalchemy en runtime).
+    set VENV_SITEPACKAGES=.venv\Lib\site-packages
+
+    if exist "!VENV_SITEPACKAGES!\sqlalchemy" (
+        powershell -NoProfile -Command ^
+            "Copy-Item -Path '!VENV_SITEPACKAGES!\sqlalchemy' -Destination '%DIST_PATH%\sqlalchemy' -Recurse -Force"
+        if !errorlevel! neq 0 (
+            echo ERROR: Fallo la copia de sqlalchemy.
+            exit /b 1
+        )
+        echo     OK — sqlalchemy copiado desde venv.
+    ) else (
+        echo ERROR: No se encontro sqlalchemy en !VENV_SITEPACKAGES!.
+        exit /b 1
+    )
+
+    if exist "!VENV_SITEPACKAGES!\pymysql" (
+        powershell -NoProfile -Command ^
+            "Copy-Item -Path '!VENV_SITEPACKAGES!\pymysql' -Destination '%DIST_PATH%\pymysql' -Recurse -Force"
+        if !errorlevel! neq 0 (
+            echo ERROR: Fallo la copia de pymysql.
+            exit /b 1
+        )
+        echo     OK — pymysql copiado desde venv.
+    ) else (
+        echo ERROR: No se encontro pymysql en !VENV_SITEPACKAGES!.
+        exit /b 1
     )
 )
 

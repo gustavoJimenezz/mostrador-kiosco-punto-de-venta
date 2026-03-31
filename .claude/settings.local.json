@@ -13,7 +13,13 @@
       "Bash(tasklist)",
       "Bash(grep -i \"\\\\.ui\\\\|main_window\\\\|login\" find C:UsersgustaDesktopkioscomostrador-kiosco-punto-de-ventadistmain.dist -name *.ui)",
       "Bash(powershell -Command \"Select-String -Path 'C:\\\\Users\\\\gusta\\\\Desktop\\\\kiosco\\\\mostrador-kiosco-punto-de-venta\\\\.venv\\\\Lib\\\\site-packages\\\\sqlalchemy\\\\orm\\\\strategies.py' -Pattern 'strategy_for|UndeferredColumn|deferred=False' | Select-Object -First 20 | Format-Table LineNumber, Line -AutoSize\")",
-      "Bash(powershell -Command \"Get-Content 'C:\\\\Users\\\\gusta\\\\Desktop\\\\kiosco\\\\mostrador-kiosco-punto-de-venta\\\\.venv\\\\Lib\\\\site-packages\\\\sqlalchemy\\\\orm\\\\strategies.py' | Select-Object -Index \\(190..205\\)\")"
+      "Bash(powershell -Command \"Get-Content 'C:\\\\Users\\\\gusta\\\\Desktop\\\\kiosco\\\\mostrador-kiosco-punto-de-venta\\\\.venv\\\\Lib\\\\site-packages\\\\sqlalchemy\\\\orm\\\\strategies.py' | Select-Object -Index \\(190..205\\)\")",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:docs.sqlalchemy.org)",
+      "Bash(build.bat)",
+      "Bash(cmd /c \"build.bat\")",
+      "Bash(cmd /c \"build.bat > build_output.txt 2>&1\")"
     ],
     "deny": [],
     "ask": []

@@ -118,7 +118,7 @@ spanish.BackupTaskFailed=Advertencia: no se pudo crear la tarea de backup. Crear
 ; =============================================================================
 
 ; Acceso directo en escritorio (seleccionado por defecto)
-Name: "desktopicon"; Description: "Crear acceso directo en el {cm:DesktopFolder}"; \
+Name: "desktopicon"; Description: "Crear acceso directo en el Escritorio"; \
     GroupDescription: "Accesos directos:"; Flags: checkedonce
 
 ; =============================================================================
@@ -127,13 +127,13 @@ Name: "desktopicon"; Description: "Crear acceso directo en el {cm:DesktopFolder}
 
 ; --- Ejecutable principal ---
 ; Modo standalone (carpeta POS.dist/): incluir toda la carpeta
-Source: "{#MySourceDir}\dist\POS.dist\*"; \
+Source: "{#MySourceDir}\dist\main.dist\*"; \
     DestDir: "{app}"; \
     Flags: ignoreversion recursesubdirs createallsubdirs; \
     Check: IsStandaloneMode
 
 ; Modo onefile (POS.exe único)
-Source: "{#MySourceDir}\dist\POS.exe"; \
+Source: "{#MySourceDir}\dist\main.dist\POS.exe"; \
     DestDir: "{app}"; \
     Flags: ignoreversion; \
     Check: IsOnefileMode
@@ -210,18 +210,16 @@ Root: HKLM; \
 Filename: "netsh"; \
     Parameters: "advfirewall firewall add rule name=""Kiosco POS MariaDB"" dir=in action=allow protocol=TCP localport=3306"; \
     Flags: runhidden waituntilterminated; \
-    StatusMsg: "Configurando regla de firewall para MariaDB..."; \
-    RunOnceId: "FirewallRule3306"
+    StatusMsg: "Configurando regla de firewall para MariaDB..."
 #endif
 
 ; ---- Tarea programada: Backup Diario ----
 ; Crea la tarea "Kiosco POS - Backup Diario" que se ejecuta a las 02:00 AM.
 ; Pasa KIOSCO_INSTALL_DIR como variable de entorno al script.
 Filename: "schtasks.exe"; \
-    Parameters: "/create /tn ""Kiosco POS - Backup Diario"" /tr ""{app}\scripts\backup_daily.bat"" /sc daily /st 02:00 /ru SYSTEM /rl highest /f /v1 /z /env KIOSCO_INSTALL_DIR={app}"; \
+    Parameters: "/create /tn ""Kiosco POS - Backup Diario"" /tr ""{app}\scripts\backup_daily.bat"" /sc daily /st 02:00 /ru SYSTEM /rl highest /f"; \
     Flags: runhidden waituntilterminated; \
-    StatusMsg: "Creando tarea de backup diario..."; \
-    RunOnceId: "BackupDailyTask"
+    StatusMsg: "Creando tarea de backup diario..."
 
 ; ---- Abrir la aplicación al finalizar (opcional, no seleccionado por defecto) ----
 Filename: "{app}\{#MyAppExeName}"; \
@@ -262,34 +260,28 @@ Type: dirifempty; Name: "{app}"
 
 ; =============================================================================
 [Code]
-; =============================================================================
+// =============================================================================
 
-{
-  Funciones Pascal Script de Inno Setup para:
-    - Detectar automáticamente si se compiló en modo standalone o onefile.
-    - Mostrar advertencia al desinstalar si existen datos en {app}\data.
-}
+// Funciones Pascal Script de Inno Setup para:
+//   - Detectar automaticamente si se compilo en modo standalone o onefile.
+//   - Mostrar advertencia al desinstalar si existen datos en app\data.
 
-{ ---------------------------------------------------------------------------
-  IsStandaloneMode / IsOnefileMode
-  Verifica qué artefacto de compilación existe en dist\ para incluir
-  los archivos correctos según el modo de compilación Nuitka utilizado.
-  --------------------------------------------------------------------------- }
+// IsStandaloneMode / IsOnefileMode
+// Verifica que artefacto de compilacion existe en dist\ para incluir
+// los archivos correctos segun el modo de compilacion Nuitka utilizado.
 function IsStandaloneMode: Boolean;
 begin
-  Result := DirExists(ExpandConstant('{src}\..\dist\POS.dist'));
+  Result := DirExists(ExpandConstant('{src}\..\dist\main.dist'));
 end;
 
 function IsOnefileMode: Boolean;
 begin
-  Result := FileExists(ExpandConstant('{src}\..\dist\POS.exe'))
+  Result := FileExists(ExpandConstant('{src}\..\dist\main.dist\POS.exe'))
             and not IsStandaloneMode;
 end;
 
-{ ---------------------------------------------------------------------------
-  InitializeSetup
-  Validación previa al inicio del wizard.
-  --------------------------------------------------------------------------- }
+// InitializeSetup
+// Validacion previa al inicio del wizard.
 function InitializeSetup: Boolean;
 var
   HasStandalone: Boolean;
@@ -326,10 +318,8 @@ begin
   Result := True;
 end;
 
-{ ---------------------------------------------------------------------------
-  InitializeUninstall
-  Advertencia si existen datos en {app}\data antes de desinstalar.
-  --------------------------------------------------------------------------- }
+// InitializeUninstall
+// Advertencia si existen datos en app\data antes de desinstalar.
 function InitializeUninstall: Boolean;
 var
   DataDir: String;

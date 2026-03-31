@@ -15,10 +15,6 @@ calculado y ``SaleItem`` no expone ``sale_id`` como atributo de dominio.
 
 from __future__ import annotations
 
-import sqlalchemy.orm.strategies  # noqa: F401 — Nuitka: fuerza inclusión del sistema
-import sqlalchemy.orm.relationships  # noqa: F401   de estrategias ORM registradas
-import sqlalchemy.orm.properties  # noqa: F401      via decoradores al definir clases.
-
 from sqlalchemy.orm import registry
 
 from src.domain.models.cash_close import CashClose

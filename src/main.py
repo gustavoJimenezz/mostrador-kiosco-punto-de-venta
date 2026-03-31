@@ -181,8 +181,17 @@ def main() -> int:
 if __name__ == "__main__":
     import traceback
     _log = Path.home() / "Desktop" / "pos_error.log"
+    _exit_code = 1
     try:
-        sys.exit(main())
+        _exit_code = main()
     except Exception:
         _log.write_text(traceback.format_exc(), encoding="utf-8")
-        sys.exit(1)
+    else:
+        if _exit_code != 0:
+            _log.write_text(
+                f"La aplicación terminó con código de salida {_exit_code}.\n"
+                "Causa probable: MariaDB no disponible o el health check falló.\n"
+                f"DATABASE_URL usada: {os.environ.get('DATABASE_URL', '(variable no definida, usando default)')}\n",
+                encoding="utf-8",
+            )
+    sys.exit(_exit_code)
