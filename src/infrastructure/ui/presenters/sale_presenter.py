@@ -18,6 +18,7 @@ from src.domain.models.price import Price
 from src.domain.models.product import Product
 from src.domain.models.sale import PaymentMethod, Sale
 from src.domain.ports.draft_cart_repository import DraftCartRepository
+from src.domain.ports.printer_base import PrinterBase
 
 
 @runtime_checkable
@@ -125,6 +126,7 @@ class SalePresenter:
         self,
         view: ISaleView,
         draft_repo: Optional[DraftCartRepository] = None,
+        printer: Optional[PrinterBase] = None,
     ) -> None:
         """Inicializa el presenter con la vista inyectada.
 
@@ -132,9 +134,12 @@ class SalePresenter:
             view: Implementación de ISaleView (MainWindow o FakeView en tests).
             draft_repo: Repositorio opcional para persistir el carrito en curso.
                         Si es None, el carrito no se persiste (tests unitarios).
+            printer: Adaptador de impresora para imprimir tickets tras cada venta.
+                     Si es None, la impresión se omite sin error (desarrollo/tests).
         """
         self._view = view
         self._draft_repo = draft_repo
+        self._printer = printer
         self._cart: dict[int, tuple[Product, int]] = {}
 
     # ------------------------------------------------------------------
@@ -186,12 +191,15 @@ class SalePresenter:
         """Maneja la confirmación de venta exitosa.
 
         Llamado por MainWindow cuando ProcessSaleWorker emite sale_completed.
-        Muestra la confirmación y limpia el carrito para la próxima venta.
+        Muestra la confirmación, imprime el ticket (si hay impresora configurada)
+        y limpia el carrito para la próxima venta.
 
         Args:
             sale: Venta persistida en la DB.
         """
         self._view.show_sale_confirmed(sale)
+        if self._printer is not None:
+            self._printer.print_ticket(sale)
         self._clear_cart()
 
     def on_sale_error(self, error_message: str) -> None:

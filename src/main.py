@@ -13,6 +13,8 @@ Valor por defecto: mysql+pymysql://root:@localhost:3306/kiosco_pos
 
 from __future__ import annotations
 
+import logging
+import logging.handlers
 import os
 import sys
 from pathlib import Path
@@ -38,6 +40,7 @@ from src.infrastructure.persistence.mariadb_user_repository import (
     MariadbUserRepository,
 )
 from src.infrastructure.database_launcher import launch_mariadb
+from src.infrastructure.hardware import get_printer_adapter
 from src.infrastructure.ui.app_config import configure_high_dpi, get_app_icon
 from src.infrastructure.ui.presenters.cash_presenter import CashPresenter
 from src.infrastructure.ui.presenters.import_presenter import ImportPresenter
@@ -67,6 +70,48 @@ _VENDOR_PATH = _PROJECT_ROOT / "vendor" / "mariadb"
 _CONFIG_PATH = _PROJECT_ROOT / "config" / "database.ini"
 
 
+def _setup_logging() -> Path:
+    """Configura el sistema de logging con rotación diaria.
+
+    Escribe en ``~/.local/share/kiosco-pos/pos.log`` con rotación que
+    conserva los últimos 7 días. El nivel se controla con la variable de
+    entorno ``POS_LOG_LEVEL`` (default: ``INFO``).
+
+    Returns:
+        Ruta al archivo de log activo.
+    """
+    log_dir = Path.home() / ".local" / "share" / "kiosco-pos"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / "pos.log"
+
+    level = getattr(logging, os.environ.get("POS_LOG_LEVEL", "INFO").upper(), logging.INFO)
+
+    formatter = logging.Formatter(
+        fmt="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    file_handler = logging.handlers.TimedRotatingFileHandler(
+        log_path,
+        when="midnight",
+        backupCount=7,
+        encoding="utf-8",
+    )
+    file_handler.setFormatter(formatter)
+
+    stderr_handler = logging.StreamHandler(sys.stderr)
+    stderr_handler.setFormatter(formatter)
+
+    root_logger = logging.getLogger()
+    root_logger.setLevel(level)
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(stderr_handler)
+
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+
+    return log_path
+
+
 def main() -> int:
     """Punto de entrada principal de la aplicación.
 
@@ -74,6 +119,11 @@ def main() -> int:
         Código de salida de la aplicación Qt (0 = normal, != 0 = error).
     """
     load_dotenv()
+
+    log_path = _setup_logging()
+    logging.getLogger(__name__).info(
+        "POS iniciando. Log: %s | PID: %d", log_path, os.getpid()
+    )
 
     # --- Paso 1: orquestar MariaDB antes de crear QApplication --------------
     # En Windows (bundle), inicia mysqld.exe si no está corriendo.
@@ -123,7 +173,8 @@ def main() -> int:
     window = MainWindow(session_factory=session_factory)
 
     draft_repo = JsonDraftCartRepository()
-    presenter = SalePresenter(view=window, draft_repo=draft_repo)
+    printer = get_printer_adapter()
+    presenter = SalePresenter(view=window, draft_repo=draft_repo, printer=printer)
     window.set_presenter(presenter)
 
     # Restaurar carrito en progreso si existe un borrador (corte de luz, etc.)
@@ -180,7 +231,8 @@ def main() -> int:
 
 if __name__ == "__main__":
     import traceback
-    _log = Path.home() / "Desktop" / "pos_error.log"
+    _log = Path.home() / ".local" / "share" / "kiosco-pos" / "pos_error.log"
+    _log.parent.mkdir(parents=True, exist_ok=True)
     _exit_code = 1
     try:
         _exit_code = main()

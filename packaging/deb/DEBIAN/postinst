@@ -1,0 +1,90 @@
+#!/bin/sh
+# postinst — Script de post-instalación del paquete kiosco-pos
+# Se ejecuta como root después de descomprimir los archivos del paquete.
+set -e
+
+DB_NAME="kiosco_pos"
+DB_USER="pos"
+DB_PASS="pos_password"
+CONFIG_DIR="/etc/pos"
+CONFIG_FILE="${CONFIG_DIR}/config.ini"
+SCHEMA_SQL="/usr/share/kiosco-pos/schema.sql"
+APP_USER="pos"
+
+# ---------------------------------------------------------------------------
+# 1. Crear usuario del sistema (sin shell, sin home) para correr la app
+# ---------------------------------------------------------------------------
+if ! id -u "${APP_USER}" > /dev/null 2>&1; then
+    adduser --system --no-create-home --group --disabled-login "${APP_USER}"
+fi
+
+# ---------------------------------------------------------------------------
+# 2. Asegurar que MariaDB esté activo
+# ---------------------------------------------------------------------------
+if command -v systemctl > /dev/null 2>&1; then
+    systemctl start mariadb || true
+fi
+
+# ---------------------------------------------------------------------------
+# 3. Crear base de datos y usuario (idempotente)
+# En Ubuntu, MariaDB root usa autenticación por socket — no requiere contraseña.
+# ---------------------------------------------------------------------------
+mysql <<SQL
+CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\`
+    CHARACTER SET utf8mb4
+    COLLATE utf8mb4_unicode_ci;
+
+CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';
+
+GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';
+
+FLUSH PRIVILEGES;
+SQL
+
+# ---------------------------------------------------------------------------
+# 4. Aplicar schema desde SQL pregenerado (sin dependencias Python)
+#    Solo si la base está vacía (primera instalación).
+# ---------------------------------------------------------------------------
+if [ -f "${SCHEMA_SQL}" ]; then
+    TABLE_COUNT=$(mysql -sN "${DB_NAME}" -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${DB_NAME}';" 2>/dev/null || echo "0")
+    if [ "${TABLE_COUNT}" = "0" ]; then
+        mysql "${DB_NAME}" < "${SCHEMA_SQL}" || true
+    fi
+fi
+
+# ---------------------------------------------------------------------------
+# 5. Permisos del archivo de configuración (entregado por dpkg via conffiles)
+# ---------------------------------------------------------------------------
+install -d -m 750 -o root -g "${APP_USER}" "${CONFIG_DIR}"
+if [ -f "${CONFIG_FILE}" ]; then
+    chmod 640 "${CONFIG_FILE}"
+    chown root:"${APP_USER}" "${CONFIG_FILE}"
+fi
+
+# ---------------------------------------------------------------------------
+# 6. Permisos para acceso a impresora térmica USB sin sudo
+# ---------------------------------------------------------------------------
+if getent group lp > /dev/null 2>&1; then
+    adduser "${APP_USER}" lp || true
+fi
+
+UDEV_RULE="/etc/udev/rules.d/99-thermal-printer.rules"
+if [ ! -f "${UDEV_RULE}" ]; then
+    cat > "${UDEV_RULE}" <<UDEV
+# Regla udev para impresoras térmicas ESC/POS — kiosco-pos
+SUBSYSTEM=="usb", ATTRS{idVendor}=="04b8", MODE="0666", GROUP="lp"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0519", MODE="0666", GROUP="lp"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1504", MODE="0666", GROUP="lp"
+SUBSYSTEM=="usb", ATTRS{bDeviceClass}=="07", MODE="0666", GROUP="lp"
+UDEV
+    udevadm control --reload-rules 2>/dev/null || true
+fi
+
+# ---------------------------------------------------------------------------
+# 7. Actualizar caché del menú de escritorio
+# ---------------------------------------------------------------------------
+if command -v update-desktop-database > /dev/null 2>&1; then
+    update-desktop-database /usr/share/applications || true
+fi
+
+exit 0

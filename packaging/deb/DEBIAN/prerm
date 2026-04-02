@@ -1,0 +1,13 @@
+#!/bin/sh
+# prerm — Script de pre-desinstalación del paquete kiosco-pos
+# Se ejecuta como root antes de eliminar los archivos del paquete.
+set -e
+
+# Detener el proceso POS si está corriendo
+if pgrep -x "POS" > /dev/null 2>&1; then
+    echo "Deteniendo proceso POS en ejecución..."
+    pkill -x "POS" || true
+    sleep 1
+fi
+
+exit 0

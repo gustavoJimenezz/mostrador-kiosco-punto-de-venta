@@ -1,0 +1,71 @@
+# =============================================================================
+#  Dockerfile.test — Imagen para validar el paquete .deb de Kiosco POS
+#
+#  Simula una instalación en Ubuntu 22.04 LTS limpio.
+#  Usado por scripts/test_deb.sh para smoke testing end-to-end.
+#
+#  Construcción:
+#    docker build -f packaging/Dockerfile.test \
+#      --build-arg DEB_FILE=dist/kiosco-pos_1.0.0_amd64.deb \
+#      -t kiosco-pos-test .
+#
+#  Ejecución:
+#    docker run --rm kiosco-pos-test
+# =============================================================================
+
+FROM ubuntu:22.04
+
+ARG DEB_FILE=dist/kiosco-pos_1.0.0_amd64.deb
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=America/Argentina/Buenos_Aires
+
+# ---------------------------------------------------------------------------
+# Herramientas de validación (lintian) y dependencias base
+# ---------------------------------------------------------------------------
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    lintian \
+    dpkg \
+    mariadb-server \
+    libqt6widgets6 \
+    cups \
+    python3-alembic \
+    adduser \
+    xvfb \
+    default-mysql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# ---------------------------------------------------------------------------
+# Iniciar MariaDB antes de instalar el paquete (el postinst la necesita activa)
+# ---------------------------------------------------------------------------
+# En Docker no hay systemd; iniciamos mysqld_safe directamente y esperamos.
+RUN mkdir -p /var/run/mysqld && chown mysql:mysql /var/run/mysqld
+RUN bash -c "mysqld_safe --skip-networking=0 &" && \
+    sleep 5 && \
+    mysqladmin -u root ping --wait=30
+
+# ---------------------------------------------------------------------------
+# Copiar y validar el .deb con lintian antes de instalar
+# ---------------------------------------------------------------------------
+COPY ${DEB_FILE} /tmp/kiosco-pos.deb
+
+RUN lintian --no-tag-display-limit /tmp/kiosco-pos.deb 2>&1 | tee /tmp/lintian_report.txt; \
+    if grep -q "^E:" /tmp/lintian_report.txt; then \
+        echo "FALLO: lintian reportó errores críticos (E:). Revisar /tmp/lintian_report.txt"; \
+        exit 1; \
+    fi
+
+# ---------------------------------------------------------------------------
+# Instalar el paquete
+# ---------------------------------------------------------------------------
+RUN bash -c "mysqld_safe --skip-networking=0 &" && \
+    sleep 5 && \
+    dpkg -i /tmp/kiosco-pos.deb || apt-get install -f -y
+
+# ---------------------------------------------------------------------------
+# Script de smoke test (se ejecuta como CMD)
+# ---------------------------------------------------------------------------
+COPY scripts/smoke_test.sh /usr/local/bin/smoke_test.sh
+RUN chmod +x /usr/local/bin/smoke_test.sh
+
+CMD ["/usr/local/bin/smoke_test.sh"]

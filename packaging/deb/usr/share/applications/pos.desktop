@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Kiosco POS
+GenericName=Sistema Punto de Venta
+Comment=Sistema POS para kioscos argentinos
+Exec=/usr/bin/POS
+Icon=kiosco-pos
+Terminal=false
+Categories=Office;Finance;
+Keywords=kiosco;pos;venta;caja;
+StartupNotify=true
+StartupWMClass=POS

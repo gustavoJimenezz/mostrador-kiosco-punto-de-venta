@@ -1,0 +1,21 @@
+Package: kiosco-pos
+Version: 1.0.0
+Section: misc
+Priority: optional
+Architecture: amd64
+Installed-Size: 150000
+Depends: mariadb-server (>= 10.6), adduser,
+ libqt6widgets6t64 (>= 6.2) | libqt6widgets6 (>= 6.2),
+ libqt6gui6t64 (>= 6.2) | libqt6gui6 (>= 6.2),
+ libqt6core6t64 (>= 6.2) | libqt6core6 (>= 6.2),
+ libqt6dbus6t64 (>= 6.2) | libqt6dbus6 (>= 6.2),
+ libgl1,
+ libglib2.0-0,
+ libxcb-cursor0
+Recommends: cups, cups-bsd
+Maintainer: Mostrador Kiosco <soporte@mostradorkiosco.com.ar>
+Description: Sistema POS para kioscos argentinos
+ Sistema de punto de venta (POS) diseñado para kioscos en Argentina.
+ Soporta operación offline-first, historial de precios ante inflación,
+ impresión térmica vía CUPS y búsqueda de productos por código de barras.
+Homepage: https://github.com/gustavoJimenezz/mostrador-kiosco-punto-de-venta
