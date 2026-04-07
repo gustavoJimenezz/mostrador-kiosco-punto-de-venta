@@ -19,7 +19,16 @@
       "WebFetch(domain:docs.sqlalchemy.org)",
       "Bash(build.bat)",
       "Bash(cmd /c \"build.bat\")",
-      "Bash(cmd /c \"build.bat > build_output.txt 2>&1\")"
+      "Bash(cmd /c \"build.bat > build_output.txt 2>&1\")",
+      "mcp__github__issue_write",
+      "mcp__github__issue_read",
+      "mcp__github__search_repositories",
+      "Bash(wc -l /home/gjimenez/Desktop/repositorios-personales/mostrador-kiosco-punto-de-venta/src/domain/models/*.py /home/gjimenez/Desktop/repositorios-personales/mostrador-kiosco-punto-de-venta/src/application/use_cases/*.py)",
+      "mcp__github__get_me",
+      "mcp__github__list_issues",
+      "Bash(chmod +x:*)",
+      "Bash(poetry install:*)",
+      "Bash(poetry run:*)"
     ],
     "deny": [],
     "ask": []

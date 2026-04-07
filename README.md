@@ -76,6 +76,42 @@ sudo dpkg -r kiosco-pos
 
 ---
 
+## Compilar el paquete .deb desde el código fuente
+
+### Requisitos previos del sistema
+
+```bash
+sudo apt update && sudo apt install -y \
+    python3-dev python3-pip python3-venv \
+    build-essential git curl \
+    patchelf ccache \
+    libmariadb-dev pkg-config \
+    libgl1 libglib2.0-0 libxcb-cursor0 \
+    mariadb-server
+```
+
+### Instalar Poetry
+
+```bash
+curl -sSL https://install.python-poetry.org | python3 -
+```
+
+Cerrar y reabrir la terminal para que Poetry quede en el PATH.
+
+### Compilar
+
+```bash
+git clone https://github.com/gustavoJimenezz/mostrador-kiosco-punto-de-venta.git
+cd mostrador-kiosco-punto-de-venta
+poetry install
+bash scripts/build_linux.sh --standalone
+bash scripts/package_deb.sh --standalone
+```
+
+El `.deb` generado queda en `dist/kiosco-pos_<version>_amd64.deb`. La compilación tarda entre 15 y 60 minutos según el hardware.
+
+---
+
 ## Estado del plan de ejecución
 
 | Ticket | Descripción | Estado |
