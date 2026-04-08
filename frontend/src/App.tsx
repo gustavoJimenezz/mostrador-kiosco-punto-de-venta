@@ -91,7 +91,7 @@ export default function App() {
   const [adminPin, setAdminPin] = useState('')
   const [adminPinError, setAdminPinError] = useState('')
   const [adminPinSubmitting, setAdminPinSubmitting] = useState(false)
-  const [adminUnlocked, setAdminUnlocked] = useState(false)
+  // const [adminUnlocked, setAdminUnlocked] = useState(false)
   const adminUnlockedRef = useRef(false)
 
   useEffect(() => {
@@ -165,7 +165,7 @@ export default function App() {
   // ── Modal: PIN de administrador ───────────────────────────────────────────
   const setAdminUnlockedSync = (val: boolean) => {
     adminUnlockedRef.current = val
-    setAdminUnlocked(val)
+  //   setAdminUnlocked(val)
   }
 
   const openAdminPanel = () => {
@@ -268,6 +268,11 @@ export default function App() {
           {isAdmin && (
             <button className="btn btn-success btn-sm" onClick={openAdminPanel} title={user.user_name}>
               Administrador
+            </button>
+          )}
+            {isAdmin && (
+            <button className="btn btn-teal btn-sm" onClick={logout} title={user.user_name}>
+              Salir
             </button>
           )}
         </div>
