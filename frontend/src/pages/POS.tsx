@@ -59,6 +59,14 @@ export default function POS() {
     setTimeout(() => inputRef.current?.focus(), 0)
   }
 
+  /** Parsea "N * término" → {qty, term}. Retorna null si no hay prefijo de cantidad. */
+  const parseQtyPrefix = (raw: string): { qty: number; term: string } | null => {
+    const match = raw.match(/^(\d+)\s*\*\s*(.+)$/)
+    if (!match) return null
+    const qty = parseInt(match[1], 10)
+    return qty > 0 ? { qty, term: match[2].trim() } : null
+  }
+
   const loadTodaySales = async () => {
     try {
       const sales = await api.get<TodaySale[]>(`/sales?date=${todayStr()}`)
@@ -104,7 +112,8 @@ export default function POS() {
         }
         if (e.key === 'Enter' && highlighted >= 0) {
           e.preventDefault()
-          selectProduct(results[highlighted])
+          const parsed = parseQtyPrefix(input.trim())
+          selectProduct(results[highlighted], parsed?.qty ?? 1)
         }
       }
     }
@@ -112,8 +121,8 @@ export default function POS() {
     return () => window.removeEventListener('keydown', handler)
   }, [items, input, results, highlighted, processing])
 
-  const selectProduct = (p: Product) => {
-    addItem({ product_id: p.id, barcode: p.barcode, name: p.name, unit_price: p.current_price })
+  const selectProduct = (p: Product, qty = 1) => {
+    addItem({ product_id: p.id, barcode: p.barcode, name: p.name, unit_price: p.current_price }, qty)
     setResults([])
     setHighlighted(-1)
     setInput('')
@@ -123,29 +132,33 @@ export default function POS() {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
-    const q = input.trim()
-    if (!q) return
+    const raw = input.trim()
+    if (!raw) return
 
-    if (results.length > 0 && highlighted >= 0) {
-      selectProduct(results[highlighted])
-      return
-    }
+    // Si hay dropdown abierto, seleccionar con la cantidad del prefijo si aplica
     if (results.length > 0) {
-      selectProduct(results[0])
+      const parsed = parseQtyPrefix(raw)
+      const qty = parsed?.qty ?? 1
+      const target = highlighted >= 0 ? results[highlighted] : results[0]
+      selectProduct(target, qty)
       return
     }
+
+    const parsed = parseQtyPrefix(raw)
+    const qty = parsed?.qty ?? 1
+    const q = parsed?.term ?? raw
 
     try {
       if (/^\d+$/.test(q)) {
         const product = await api.get<Product>(`/products/barcode/${q}`)
-        selectProduct(product)
+        selectProduct(product, qty)
       } else {
         const found = await api.get<Product[]>(`/products/search?q=${encodeURIComponent(q)}`)
         if (found.length === 0) {
           setMessage({ text: `No se encontró "${q}"`, type: 'error' })
           setResults([])
         } else if (found.length === 1) {
-          selectProduct(found[0])
+          selectProduct(found[0], qty)
         } else {
           setResults(found)
           setHighlighted(0)

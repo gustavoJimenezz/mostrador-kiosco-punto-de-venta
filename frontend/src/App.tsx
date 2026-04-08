@@ -82,6 +82,10 @@ export default function App() {
   const [closingAmount, setClosingAmount] = useState('')
   const [movements, setMovements] = useState<Movement[]>([])
   const [salesCount, setSalesCount] = useState(0)
+  const [profitData, setProfitData] = useState<{
+    total_revenue: string; total_cost_estimate: string
+    gross_profit: string; margin_percent: string; total_sales_count: number
+  } | null>(null)
 
   const [cashMsg, setCashMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
   const [cashSubmitting, setCashSubmitting] = useState(false)
@@ -133,14 +137,17 @@ export default function App() {
     setCashMsg(null)
     setMovements([])
     setSalesCount(0)
+    setProfitData(null)
 
-    // Cargar movimientos y cantidad de ventas en paralelo
-    const [movs, sales] = await Promise.allSettled([
+    // Cargar movimientos, ventas y ganancia en paralelo
+    const [movs, sales, profit] = await Promise.allSettled([
       state.id ? api.get<Movement[]>(`/cash/movements/${state.id}`) : Promise.resolve([]),
       api.get<unknown[]>(`/sales?date=${todayStr()}`),
+      api.get<typeof profitData>('/cash/profit'),
     ])
     if (movs.status === 'fulfilled') setMovements(movs.value as Movement[])
     if (sales.status === 'fulfilled') setSalesCount((sales.value as unknown[]).length)
+    if (profit.status === 'fulfilled') setProfitData(profit.value)
 
     setShowCloseCash(true)
   }
@@ -233,9 +240,10 @@ export default function App() {
 
   // Cálculos para el modal de cierre
   const netMovements = movements.reduce((acc, m) => acc + parseFloat(m.amount), 0)
-  const expectedCash = parseFloat(cashState.expected_cash)
+  const expectedCash = parseFloat(cashState.expected_cash)          // apertura + ventas_efectivo
+  const theoreticalCash = expectedCash + netMovements               // + movimientos manuales netos
   const countedAmount = parseFloat(closingAmount) || 0
-  const difference = countedAmount - expectedCash
+  const difference = countedAmount - theoreticalCash
   const differenceLabel = difference >= 0 ? 'Sobrante' : 'Faltante'
 
   return (
@@ -326,16 +334,33 @@ export default function App() {
             <div className="arqueo-section">
               <div className="arqueo-section-title">Rentabilidad del Período <span style={{ fontWeight: 400, fontSize: 11 }}>(ganancia bruta estimada)</span></div>
 
-              {/* Barra de progreso visual */}
-              <div style={{ background: 'var(--success-light)', borderRadius: 4, height: 10, marginBottom: 10, overflow: 'hidden' }}>
-                <div style={{ background: 'var(--success)', height: '100%', width: '100%', borderRadius: 4 }} />
-              </div>
+              {/* Barra de progreso visual: ancho = margen% */}
+              {profitData && (
+                <div style={{ background: 'var(--success-light)', borderRadius: 4, height: 10, marginBottom: 10, overflow: 'hidden' }}>
+                  <div style={{ background: 'var(--success)', height: '100%', width: `${Math.min(parseFloat(profitData.margin_percent), 100)}%`, borderRadius: 4, transition: 'width 0.4s ease' }} />
+                </div>
+              )}
 
-              <div className="arqueo-row"><span>Total Facturado (Ventas)</span><span className="font-mono">${cashState.total_sales}</span></div>
-              <div className="arqueo-row text-secondary"><span>(-) Costo de Mercadería vendida *</span><span className="font-mono">$0.00</span></div>
-              <div className="arqueo-row text-secondary"><span>(=) Ganancia Bruta Estimada</span><span className="font-mono">${cashState.total_sales}</span></div>
-              <div className="arqueo-row text-secondary"><span>Margen promedio</span><span className="font-mono">—</span></div>
-              <div className="arqueo-row text-secondary"><span>Cantidad de ventas del período</span><span className="font-mono">{salesCount}</span></div>
+              <div className="arqueo-row">
+                <span>Total Facturado (Ventas)</span>
+                <span className="font-mono">${profitData ? profitData.total_revenue : cashState.total_sales}</span>
+              </div>
+              <div className="arqueo-row text-secondary">
+                <span>(-) Costo de Mercadería vendida *</span>
+                <span className="font-mono">{profitData ? `$${profitData.total_cost_estimate}` : '…'}</span>
+              </div>
+              <div className="arqueo-row" style={{ fontWeight: 700, color: 'var(--success)' }}>
+                <span>(=) Ganancia Bruta Estimada</span>
+                <span className="font-mono">{profitData ? `$${profitData.gross_profit}` : '…'}</span>
+              </div>
+              <div className="arqueo-row text-secondary">
+                <span>Margen sobre ventas</span>
+                <span className="font-mono">{profitData ? `${profitData.margin_percent}%` : '—'}</span>
+              </div>
+              <div className="arqueo-row text-secondary">
+                <span>Cantidad de ventas del período</span>
+                <span className="font-mono">{profitData ? profitData.total_sales_count : salesCount}</span>
+              </div>
             </div>
 
             {/* ── Ventas por método de pago ── */}
@@ -360,7 +385,7 @@ export default function App() {
               </div>
               <div className="arqueo-row">
                 <span>(=) Saldo Teórico en Caja</span>
-                <span className="font-mono">${cashState.expected_cash}</span>
+                <span className="font-mono">${theoreticalCash.toFixed(2)}</span>
               </div>
 
               {/* Input monto contado */}

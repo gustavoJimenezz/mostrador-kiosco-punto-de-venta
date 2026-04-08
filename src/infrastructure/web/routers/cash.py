@@ -148,6 +148,35 @@ def open_cash(
     )
 
 
+@router.get("/profit")
+def get_profit(
+    cash_repo: MariadbCashRepository = Depends(get_cash_repo),
+    _auth: dict = Depends(require_auth),
+):
+    """Retorna la ganancia bruta estimada del arqueo actualmente abierto.
+
+    Útil para mostrar el resumen de rentabilidad en el modal de cierre antes
+    de confirmar. Devuelve ceros si no hay arqueo abierto o sin ventas.
+    """
+    cash_close = cash_repo.get_open()
+    if cash_close is None or cash_close.id is None:
+        return {
+            "total_revenue": "0.00",
+            "total_cost_estimate": "0.00",
+            "gross_profit": "0.00",
+            "margin_percent": "0.00",
+            "total_sales_count": 0,
+        }
+    data = cash_repo.get_profit_data_for_session(cash_close.id)
+    return {
+        "total_revenue": str(data["total_revenue"]),
+        "total_cost_estimate": str(data["total_cost_estimate"]),
+        "gross_profit": str(data["gross_profit"]),
+        "margin_percent": str(data["margin_percent"]),
+        "total_sales_count": data["total_sales_count"],
+    }
+
+
 @router.post("/close")
 def close_cash(
     body: CloseCashRequest,
@@ -157,14 +186,11 @@ def close_cash(
 ):
     """Cierra el arqueo de caja activo y dispara la sincronización EOD.
 
-    La sincronización EOD se ejecuta en background si ``REMOTE_DATABASE_URL``
-    está configurada en el entorno. Si no hay conexión al remoto, la operación
-    de cierre igual se completa y se encola el sync para el próximo intento.
+    Calcula automáticamente la ganancia bruta estimada del período antes
+    de persistir el cierre, sin depender de que el frontend la envíe.
     """
     try:
         closing_amount = Decimal(body.closing_amount)
-        gross = Decimal(body.gross_profit_estimate) if body.gross_profit_estimate else None
-        cost = Decimal(body.total_cost_estimate) if body.total_cost_estimate else None
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -172,6 +198,15 @@ def close_cash(
         )
 
     try:
+        # Obtener el arqueo abierto para calcular ganancia antes de cerrarlo
+        cash_close = cash_repo.get_open()
+        if cash_close is None:
+            raise ValueError("No hay ningún arqueo de caja abierto para cerrar.")
+
+        profit_data = cash_repo.get_profit_data_for_session(cash_close.id)
+        gross = profit_data["gross_profit"]
+        cost = profit_data["total_cost_estimate"]
+
         closed = CloseCashClose(cash_repo).execute(closing_amount, gross, cost)
         session.commit()
     except ValueError as exc:
@@ -181,12 +216,17 @@ def close_cash(
     # Disparar sync EOD en background (no bloquea la respuesta)
     _trigger_eod_sync_if_configured(closed.id)
 
+    margin = profit_data["margin_percent"]
     return {
         "id": closed.id,
         "closed_at": closed.closed_at.isoformat() if closed.closed_at else None,
         "closing_amount": str(closed.closing_amount),
         "total_sales": str(closed.total_sales.amount),
         "cash_difference": str(closed.cash_difference) if closed.cash_difference is not None else None,
+        "gross_profit": str(gross),
+        "total_cost_estimate": str(cost),
+        "margin_percent": str(margin),
+        "total_sales_count": profit_data["total_sales_count"],
     }
 
 
@@ -245,7 +285,39 @@ def list_cash_history(
     except ValueError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Formato de fecha inválido. Use YYYY-MM-DD.")
 
+    from decimal import ROUND_HALF_UP
+
     closes = cash_repo.list_by_date_range(start_date, end_date)
+
+    # Query única para movimientos de todos los arqueos (evita N+1)
+    close_ids = [cc.id for cc in closes if cc.id is not None]
+    movements_totals = cash_repo.get_movements_totals_by_close_ids(close_ids)
+
+    def _real_difference(cc) -> str | None:
+        """Diferencia real: contado − (apertura + ventas_efectivo + movimientos_neto).
+
+        Corrige el cash_difference del dominio que no incluye movimientos manuales.
+        """
+        if cc.closing_amount is None:
+            return None
+        net_mov = movements_totals.get(cc.id, Decimal("0"))
+        expected = cc.opening_amount + cc.total_sales_cash + net_mov
+        diff = (cc.closing_amount - expected).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        return str(diff)
+
+    def _margin(cc) -> str | None:
+        """Margen sobre ventas: ganancia / revenue × 100."""
+        if cc.gross_profit_estimate is None:
+            return None
+        rev = cc.total_sales.amount
+        if rev == Decimal("0"):
+            return "0.00"
+        return str(
+            (Decimal(str(cc.gross_profit_estimate)) / rev * 100).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+        )
+
     return [
         {
             "id": cc.id,
@@ -258,7 +330,10 @@ def list_cash_history(
             "total_sales_debit": str(cc.total_sales_debit),
             "total_sales_transfer": str(cc.total_sales_transfer),
             "total_sales": str(cc.total_sales.amount),
-            "cash_difference": str(cc.cash_difference) if cc.cash_difference is not None else None,
+            "cash_difference": _real_difference(cc),
+            "gross_profit": str(cc.gross_profit_estimate) if cc.gross_profit_estimate is not None else None,
+            "total_cost_estimate": str(cc.total_cost_estimate) if cc.total_cost_estimate is not None else None,
+            "margin_percent": _margin(cc),
         }
         for cc in closes
     ]

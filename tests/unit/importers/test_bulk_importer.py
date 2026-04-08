@@ -31,7 +31,7 @@ from src.application.use_cases.update_bulk_prices import (
     ProductImportRow,
     UpdateBulkPrices,
 )
-from src.infrastructure.importers.bulk_price_importer import BulkPriceImporter
+from src.infrastructure.importers.bulk_price_importer import BulkPriceImporter, ImportSheet
 from tests.unit.domain.mocks.in_memory_category_repository import InMemoryCategoryRepository
 from src.domain.models.category import Category
 
@@ -184,9 +184,7 @@ class TestBulkPriceImporterParseDataframe:
 
     def test_parse_dataframe_con_mapping_nuevo_formato(self) -> None:
         """parse_dataframe acepta {campo_destino: col_archivo} y renombra correctamente."""
-        import polars as pl
-
-        df = pl.DataFrame({
+        df = ImportSheet.from_dict({
             "Código EAN": ["7790001000001", "7790001000002"],
             "Descripción": ["Coca Cola", "Pepsi"],
             "Costo Neto": ["1250", "1100"],
@@ -206,9 +204,7 @@ class TestBulkPriceImporterParseDataframe:
 
     def test_parse_dataframe_alias_net_cost_a_cost_price(self) -> None:
         """El alias net_cost→cost_price se aplica correctamente con el nuevo formato."""
-        import polars as pl
-
-        df = pl.DataFrame({
+        df = ImportSheet.from_dict({
             "ean": ["7790001000001"],
             "prod": ["Fideos Don Victorio"],
             "precio": ["850"],
@@ -226,9 +222,7 @@ class TestBulkPriceImporterParseDataframe:
 
     def test_parse_dataframe_columna_ignorar_se_descarta(self) -> None:
         """Entradas con col_archivo '(ignorar)' se omiten sin romper el parsing."""
-        import polars as pl
-
-        df = pl.DataFrame({
+        df = ImportSheet.from_dict({
             "barcode": ["7790001000001"],
             "name": ["Galletitas Oreo"],
             "cost_price": ["980"],
@@ -248,9 +242,7 @@ class TestBulkPriceImporterParseDataframe:
 
     def test_parse_dataframe_col_archivo_inexistente_se_ignora(self) -> None:
         """Si col_archivo no existe en el DataFrame, la entrada del mapping se omite sin error."""
-        import polars as pl
-
-        df = pl.DataFrame({
+        df = ImportSheet.from_dict({
             "barcode": ["7790001000001"],
             "name": ["Alfajor Jorgito"],
             "cost_price": ["350"],
@@ -270,9 +262,7 @@ class TestBulkPriceImporterParseDataframe:
 
     def test_parse_dataframe_sin_mapping_usa_nombres_directos(self) -> None:
         """Si column_mapping es None, el DataFrame se valida con sus nombres originales."""
-        import polars as pl
-
-        df = pl.DataFrame({
+        df = ImportSheet.from_dict({
             "barcode": ["7790001000001", "7790001000002"],
             "name": ["Agua Ser 500ml", "Sprite 500ml"],
             "cost_price": ["450", "520"],
@@ -285,9 +275,7 @@ class TestBulkPriceImporterParseDataframe:
 
     def test_global_margin_sobreescribe_margen_de_fila(self) -> None:
         """global_margin reemplaza incondicionalmente el margin_percent de cada fila."""
-        import polars as pl
-
-        df = pl.DataFrame({
+        df = ImportSheet.from_dict({
             "barcode": ["7790001000001", "7790001000002"],
             "name": ["Coca Cola", "Pepsi"],
             "cost_price": ["1250", "1100"],
@@ -301,9 +289,7 @@ class TestBulkPriceImporterParseDataframe:
 
     def test_sin_global_margin_usa_margen_del_archivo(self) -> None:
         """Sin global_margin se respeta el margin_percent del archivo."""
-        import polars as pl
-
-        df = pl.DataFrame({
+        df = ImportSheet.from_dict({
             "barcode": ["7790001000001"],
             "name": ["Coca Cola"],
             "cost_price": ["1250"],
@@ -469,9 +455,7 @@ class TestBulkPriceImporterCategory:
 
     def test_columna_category_mapeada_se_extrae(self) -> None:
         """Columna 'category' mapeada → ProductImportRow.category_name se extrae."""
-        import polars as pl
-
-        df = pl.DataFrame({
+        df = ImportSheet.from_dict({
             "barcode": ["7790001000001"],
             "name": ["Coca Cola 500ml"],
             "cost_price": ["1250"],
@@ -485,9 +469,7 @@ class TestBulkPriceImporterCategory:
 
     def test_sin_columna_category_category_name_vacio(self) -> None:
         """Sin columna 'category' en el DataFrame → category_name='' sin error."""
-        import polars as pl
-
-        df = pl.DataFrame({
+        df = ImportSheet.from_dict({
             "barcode": ["7790001000001"],
             "name": ["Coca Cola 500ml"],
             "cost_price": ["1250"],

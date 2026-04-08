@@ -71,7 +71,7 @@ products_table = Table(
     Column("barcode", String(50), nullable=False, unique=True),
     Column("name", String(250), nullable=False),
     Column("current_cost", Numeric(12, 2), nullable=False),
-    Column("margin_percent", Numeric(5, 2), nullable=False),
+    Column("margin_percent", Numeric(15, 4), nullable=False),
     Column("stock", Integer, nullable=False, server_default="0"),
     Column("min_stock", Integer, nullable=False, server_default="0"),
     Column(

@@ -46,10 +46,35 @@ async function uploadFile<T>(path: string, file: File): Promise<T> {
   return res.json() as Promise<T>
 }
 
+async function uploadFileWithData<T>(
+  path: string,
+  file: File,
+  data: Record<string, string>,
+): Promise<T> {
+  const form = new FormData()
+  form.append('file', file)
+  for (const [key, value] of Object.entries(data)) {
+    form.append(key, value)
+  }
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    body: form,
+    credentials: 'include',
+  })
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({ detail: res.statusText }))
+    throw new Error(detail.detail ?? `HTTP ${res.status}`)
+  }
+  if (res.status === 204) return undefined as T
+  return res.json() as Promise<T>
+}
+
 export const api = {
   get: <T>(path: string) => request<T>('GET', path),
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
   put: <T>(path: string, body?: unknown) => request<T>('PUT', path, body),
   delete: <T>(path: string) => request<T>('DELETE', path),
   upload: <T>(path: string, file: File) => uploadFile<T>(path, file),
+  uploadWithData: <T>(path: string, file: File, data: Record<string, string>) =>
+    uploadFileWithData<T>(path, file, data),
 }

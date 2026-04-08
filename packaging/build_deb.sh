@@ -43,7 +43,7 @@ echo "→ Frontend listo en frontend/dist/"
 echo "→ Instalando dependencias Python..."
 python3 -m venv "${INSTALL_DIR}/venv"
 "${INSTALL_DIR}/venv/bin/pip" install --quiet --upgrade pip
-"${INSTALL_DIR}/venv/bin/pip" install --quiet fastapi "uvicorn[standard]" python-multipart itsdangerous sqlalchemy alembic pymysql pydantic bcrypt polars cryptography python-dotenv psutil
+"${INSTALL_DIR}/venv/bin/pip" install --quiet fastapi uvicorn python-multipart itsdangerous sqlalchemy alembic pymysql pydantic bcrypt openpyxl cryptography python-dotenv psutil
 
 # --- 4. Copiar código fuente ---
 echo "→ Copiando código fuente..."

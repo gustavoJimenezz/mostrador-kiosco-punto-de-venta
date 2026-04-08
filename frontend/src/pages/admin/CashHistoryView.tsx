@@ -11,6 +11,7 @@ interface CashClose {
   opening_amount: string; closing_amount: string | null
   total_sales_cash: string; total_sales_debit: string; total_sales_transfer: string
   total_sales: string; cash_difference: string | null
+  gross_profit: string | null; total_cost_estimate: string | null; margin_percent: string | null
 }
 
 function today() { return new Date().toISOString().split('T')[0] }
@@ -45,6 +46,7 @@ export default function CashHistoryView() {
   useEffect(() => { load() }, [])
 
   const totalSales = closes.reduce((a, c) => a + parseFloat(c.total_sales), 0)
+  const totalProfit = closes.reduce((a, c) => a + (c.gross_profit ? parseFloat(c.gross_profit) : 0), 0)
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -70,6 +72,10 @@ export default function CashHistoryView() {
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Ventas totales del período</div>
             <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--success)' }}>${totalSales.toFixed(2)}</div>
           </div>
+          <div className="card" style={{ textAlign: 'center', flex: 2 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Ganancia bruta del período</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: totalProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}>${totalProfit.toFixed(2)}</div>
+          </div>
         </div>
       )}
 
@@ -84,10 +90,10 @@ export default function CashHistoryView() {
                 <th>Cierre</th>
                 <th>Estado</th>
                 <th className="td-right">F.Inicial</th>
-                <th className="td-right">Efectivo</th>
-                <th className="td-right">Débito</th>
-                <th className="td-right">Transf.</th>
                 <th className="td-right">Total ventas</th>
+                <th className="td-right">Costo merc.</th>
+                <th className="td-right">Ganancia</th>
+                <th className="td-right">Margen</th>
                 <th className="td-right">F.Contado</th>
                 <th className="td-right">Diferencia</th>
               </tr>
@@ -98,6 +104,7 @@ export default function CashHistoryView() {
               )}
               {closes.map((c) => {
                 const diff = c.cash_difference ? parseFloat(c.cash_difference) : null
+                const profit = c.gross_profit ? parseFloat(c.gross_profit) : null
                 return (
                   <tr key={c.id}>
                     <td className="td-mono">{fmtDateTime(c.opened_at)}</td>
@@ -108,10 +115,12 @@ export default function CashHistoryView() {
                       </span>
                     </td>
                     <td className="td-right td-mono">${c.opening_amount}</td>
-                    <td className="td-right td-mono">${c.total_sales_cash}</td>
-                    <td className="td-right td-mono">${c.total_sales_debit}</td>
-                    <td className="td-right td-mono">${c.total_sales_transfer}</td>
                     <td className="td-right td-mono font-bold" style={{ color: 'var(--success)' }}>${c.total_sales}</td>
+                    <td className="td-right td-mono text-secondary">{c.total_cost_estimate ? `$${c.total_cost_estimate}` : '—'}</td>
+                    <td className={`td-right td-mono font-bold ${profit === null ? '' : profit >= 0 ? 'text-success' : 'text-danger'}`}>
+                      {profit !== null ? `$${profit.toFixed(2)}` : '—'}
+                    </td>
+                    <td className="td-right td-mono text-secondary">{c.margin_percent ? `${c.margin_percent}%` : '—'}</td>
                     <td className="td-right td-mono">{c.closing_amount ? `$${c.closing_amount}` : '—'}</td>
                     <td className={`td-right td-mono font-bold ${diff === null ? '' : diff >= 0 ? 'text-success' : 'text-danger'}`}>
                       {diff !== null ? `${diff >= 0 ? '+' : ''}$${diff.toFixed(2)}` : '—'}

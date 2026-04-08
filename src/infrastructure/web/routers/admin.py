@@ -13,7 +13,7 @@ Endpoints:
 
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -58,6 +58,7 @@ class ProductCreateRequest(BaseModel):
     name: str
     current_cost: str
     margin_percent: str = "30.00"
+    final_price: Optional[str] = None  # si se envía, tiene prioridad sobre margin_percent
     stock: int = 0
     min_stock: int = 0
     category_id: Optional[int] = None
@@ -67,6 +68,7 @@ class ProductUpdateRequest(BaseModel):
     name: Optional[str] = None
     current_cost: Optional[str] = None
     margin_percent: Optional[str] = None
+    final_price: Optional[str] = None  # si se envía, tiene prioridad sobre margin_percent
     stock: Optional[int] = None
     min_stock: Optional[int] = None
     category_id: Optional[int] = None
@@ -91,6 +93,26 @@ class UserResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _margin_from_price(cost: Decimal, price: Decimal) -> Decimal:
+    """Calcula el margen exacto que produce ``price`` dado ``cost``.
+
+    Usa aritmética Decimal de alta precisión y redondea a 4 decimales
+    (Numeric(15,4)) para garantizar que ``cost * (1 + margin/100)``
+    vuelva al mismo centavo via ROUND_HALF_UP.
+
+    Args:
+        cost: Costo del producto.
+        price: Precio final deseado.
+
+    Returns:
+        Margen en porcentaje redondeado a 4 decimales.
+    """
+    if cost == Decimal("0"):
+        return Decimal("0.0000")
+    margin = ((price / cost) - Decimal("1")) * Decimal("100")
+    return margin.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+
 
 def _product_to_response(p: Product) -> ProductResponse:
     return ProductResponse(
@@ -128,11 +150,16 @@ def create_product(
 ):
     """Crea un nuevo producto en el catálogo."""
     try:
+        cost = Decimal(body.current_cost)
+        if body.final_price is not None:
+            margin = _margin_from_price(cost, Decimal(body.final_price))
+        else:
+            margin = Decimal(body.margin_percent)
         product = Product(
             barcode=body.barcode,
             name=body.name,
-            current_cost=Decimal(body.current_cost),
-            margin_percent=Decimal(body.margin_percent),
+            current_cost=cost,
+            margin_percent=margin,
             stock=body.stock,
             min_stock=body.min_stock,
             category_id=body.category_id,
@@ -167,7 +194,11 @@ def update_product(
             product.name = body.name
         if body.current_cost is not None:
             product.update_cost(Decimal(body.current_cost))
-        if body.margin_percent is not None:
+        # final_price tiene prioridad sobre margin_percent
+        if body.final_price is not None:
+            new_cost = Decimal(body.current_cost) if body.current_cost is not None else product.current_cost
+            product.update_margin(_margin_from_price(new_cost, Decimal(body.final_price)))
+        elif body.margin_percent is not None:
             product.update_margin(Decimal(body.margin_percent))
         if body.stock is not None:
             product.stock = body.stock

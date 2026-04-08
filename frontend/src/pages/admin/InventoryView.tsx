@@ -15,19 +15,30 @@ interface Product {
 
 interface FormData {
   barcode: string; name: string; current_cost: string
-  margin_percent: string; stock: string; min_stock: string
+  margin_percent: string; final_price: string; stock: string; min_stock: string
   category_id: string
 }
 
 const emptyForm: FormData = {
   barcode: '', name: '', current_cost: '0.00',
-  margin_percent: '30.00', stock: '0', min_stock: '0', category_id: '',
+  margin_percent: '30.00', final_price: '0.00', stock: '0', min_stock: '0', category_id: '',
 }
 
-function calcPrice(cost: string, margin: string) {
+/** Caso A: precio = costo × (1 + margen/100) */
+function priceFromMargin(cost: string, margin: string): string {
   const c = parseFloat(cost) || 0
   const m = parseFloat(margin) || 0
   return (c * (1 + m / 100)).toFixed(2)
+}
+
+/** Caso B: margen ≈ ((precio / costo) - 1) × 100, redondeado a 2 dec para display.
+ *  El backend recibe final_price y recalcula el margen exacto con Decimal.
+ */
+function marginFromPrice(cost: string, price: string): string | null {
+  const c = parseFloat(cost) || 0
+  const p = parseFloat(price) || 0
+  if (c === 0) return null
+  return (((p / c) - 1) * 100).toFixed(2)
 }
 
 export default function InventoryView() {
@@ -80,6 +91,7 @@ export default function InventoryView() {
     setForm({
       barcode: p.barcode, name: p.name,
       current_cost: p.current_cost, margin_percent: p.margin_percent,
+      final_price: p.current_price,
       stock: String(p.stock), min_stock: String(p.min_stock),
       category_id: p.category_id ? String(p.category_id) : '',
     })
@@ -92,6 +104,7 @@ export default function InventoryView() {
     const body = {
       barcode: form.barcode, name: form.name,
       current_cost: form.current_cost, margin_percent: form.margin_percent,
+      final_price: form.final_price,  // el backend usa esto para calcular el margen exacto
       stock: parseInt(form.stock), min_stock: parseInt(form.min_stock),
       category_id: form.category_id ? parseInt(form.category_id) : null,
     }
@@ -140,7 +153,22 @@ export default function InventoryView() {
     !filter || p.name.toLowerCase().includes(filter.toLowerCase()) || p.barcode.includes(filter)
   )
 
-  const setField = (k: keyof FormData, v: string) => setForm((f) => ({ ...f, [k]: v }))
+  const setField = (k: keyof FormData, v: string) => setForm((f) => {
+    const next = { ...f, [k]: v }
+
+    if (k === 'current_cost' || k === 'margin_percent') {
+      // Caso A: al cambiar costo o margen → recalcula precio final
+      const cost = k === 'current_cost' ? v : f.current_cost
+      const margin = k === 'margin_percent' ? v : f.margin_percent
+      next.final_price = priceFromMargin(cost, margin)
+    } else if (k === 'final_price') {
+      // Caso B: al cambiar precio final → recalcula margen (guard: costo != 0)
+      const newMargin = marginFromPrice(f.current_cost, v)
+      if (newMargin !== null) next.margin_percent = newMargin
+    }
+
+    return next
+  })
 
   if (loading) return <div style={{ padding: 32, color: 'var(--text-secondary)' }}>Cargando...</div>
 
@@ -252,8 +280,13 @@ export default function InventoryView() {
                   <input type="number" min="0" step="0.01" className="input" value={form.margin_percent} onChange={(e) => setField('margin_percent', e.target.value)} required />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Precio calculado</label>
-                  <input className="input" value={`$${calcPrice(form.current_cost, form.margin_percent)}`} readOnly style={{ background: 'var(--primary-light)', color: 'var(--primary)', fontWeight: 700 }} />
+                  <label className="form-label">Precio final ($)</label>
+                  <input
+                    type="number" min="0" step="0.01" className="input"
+                    value={form.final_price}
+                    onChange={(e) => setField('final_price', e.target.value)}
+                    style={{ background: 'var(--primary-light)', color: 'var(--primary)', fontWeight: 700 }}
+                  />
                 </div>
               </div>
               <div className="form-row">
