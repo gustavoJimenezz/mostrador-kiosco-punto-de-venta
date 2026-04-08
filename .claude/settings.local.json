@@ -19,7 +19,20 @@
       "WebFetch(domain:docs.sqlalchemy.org)",
       "Bash(build.bat)",
       "Bash(cmd /c \"build.bat\")",
-      "Bash(cmd /c \"build.bat > build_output.txt 2>&1\")"
+      "Bash(cmd /c \"build.bat > build_output.txt 2>&1\")",
+      "Bash(poetry lock:*)",
+      "Bash(poetry install:*)",
+      "Bash(poetry run:*)",
+      "mcp__github__issue_write",
+      "Read(//usr/lib/kiosco-pos/frontend/**)",
+      "Read(//usr/lib/kiosco-pos/**)",
+      "Bash(npx tsc:*)",
+      "Bash(./node_modules/.bin/tsc:*)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(./node_modules/.bin/vite build:*)",
+      "Bash(docker compose:*)",
+      "Bash(sqlite3:*)",
+      "Read(//home/gjimenez/.local/share/kiosco-pos/**)"
     ],
     "deny": [],
     "ask": []

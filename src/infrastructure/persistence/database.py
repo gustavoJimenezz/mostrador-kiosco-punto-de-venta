@@ -6,9 +6,11 @@ No importa nada del dominio; es infraestructura pura.
 
 from __future__ import annotations
 
-from sqlalchemy import Engine, create_engine
+from pathlib import Path
+
+from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import QueuePool
+from sqlalchemy.pool import QueuePool, StaticPool
 
 
 def create_mariadb_engine(connection_url: str, echo: bool = False) -> Engine:
@@ -42,6 +44,45 @@ def create_mariadb_engine(connection_url: str, echo: bool = False) -> Engine:
         pool_recycle=3600,
         echo=echo,
     )
+
+
+def create_sqlite_engine(db_path: Path, echo: bool = False) -> Engine:
+    """Crea un Engine SQLAlchemy optimizado para SQLite en entorno local (kiosco).
+
+    Diseñado para un único proceso con un solo worker uvicorn. Activa WAL
+    y foreign keys automáticamente en cada nueva conexión.
+
+    Args:
+        db_path: Ruta al archivo ``.db``. Se crea si no existe.
+        echo: Si True, loguea todas las sentencias SQL. Solo para desarrollo.
+
+    Returns:
+        Engine configurado con ``StaticPool`` (una sola conexión persistente).
+
+    Note:
+        - ``StaticPool``: reutiliza la misma conexión en todos los threads.
+          Correcto para un servidor de un solo worker (uvicorn ``--workers 1``).
+        - ``check_same_thread=False``: necesario para SQLite con FastAPI/uvicorn,
+          donde la sesión puede crearse en un thread y usarse en otro.
+        - WAL activado via evento ``connect`` para permitir lecturas concurrentes
+          mientras hay una escritura en curso.
+        - ``foreign_keys=ON`` porque SQLite no los activa por defecto.
+    """
+    engine = create_engine(
+        f"sqlite:///{db_path}",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        echo=echo,
+    )
+
+    @event.listens_for(engine, "connect")
+    def _set_sqlite_pragmas(dbapi_connection, connection_record) -> None:
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
+    return engine
 
 
 def create_session_factory(engine: Engine) -> sessionmaker[Session]:

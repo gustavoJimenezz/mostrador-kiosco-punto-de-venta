@@ -24,36 +24,40 @@ depends_on = None
 
 def upgrade() -> None:
     """Crea la tabla cash_movements con FK a cash_closes."""
-    op.create_table(
-        "cash_movements",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column(
-            "cash_close_id",
-            sa.Integer(),
-            sa.ForeignKey("cash_closes.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column("amount", sa.Numeric(12, 2), nullable=False),
-        sa.Column(
-            "movement_type",
-            sa.Enum("INGRESO", "EGRESO", name="movement_type_enum"),
-            nullable=False,
-        ),
-        sa.Column(
-            "description",
-            sa.String(250),
-            nullable=False,
-            server_default="",
-        ),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
-        mysql_engine="InnoDB",
-        mysql_charset="utf8mb4",
-    )
-    op.create_index(
-        "ix_cash_movements_cash_close_id",
-        "cash_movements",
-        ["cash_close_id"],
-    )
+    from sqlalchemy import inspect as sa_inspect
+
+    bind = op.get_bind()
+    if "cash_movements" not in sa_inspect(bind).get_table_names():
+        op.create_table(
+            "cash_movements",
+            sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+            sa.Column(
+                "cash_close_id",
+                sa.Integer(),
+                sa.ForeignKey("cash_closes.id", ondelete="CASCADE"),
+                nullable=False,
+            ),
+            sa.Column("amount", sa.Numeric(12, 2), nullable=False),
+            sa.Column(
+                "movement_type",
+                sa.Enum("INGRESO", "EGRESO", name="movement_type_enum"),
+                nullable=False,
+            ),
+            sa.Column(
+                "description",
+                sa.String(250),
+                nullable=False,
+                server_default="",
+            ),
+            sa.Column("created_at", sa.DateTime(), nullable=False),
+            mysql_engine="InnoDB",
+            mysql_charset="utf8mb4",
+        )
+        op.create_index(
+            "ix_cash_movements_cash_close_id",
+            "cash_movements",
+            ["cash_close_id"],
+        )
 
 
 def downgrade() -> None:

@@ -1,0 +1,36 @@
+[Unit]
+Description=Kiosco POS — servidor FastAPI local
+Documentation=https://github.com/gustavoJimenezz/mostrador-kiosco-punto-de-venta
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=kiosco
+Group=kiosco
+WorkingDirectory=/usr/lib/kiosco-pos
+
+# Variables de entorno — editar en /etc/kiosco-pos/config.env
+EnvironmentFile=/etc/kiosco-pos/config.env
+
+# Aplicar migraciones antes de arrancar el servidor
+ExecStartPre=/usr/lib/kiosco-pos/venv/bin/python3 -m alembic upgrade head
+
+# Arrancar uvicorn con 1 worker (requerido por SQLite StaticPool)
+ExecStart=/usr/lib/kiosco-pos/venv/bin/python3 web_main.py
+
+# Reiniciar automáticamente ante fallos (excepto código de salida 0)
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=10
+
+# Crear directorio de datos si no existe (SQLite + logs)
+StateDirectory=kiosco-pos
+StateDirectoryMode=0750
+
+# Seguridad básica
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

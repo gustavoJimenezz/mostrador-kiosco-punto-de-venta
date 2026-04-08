@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Kiosco POS
+Comment=Sistema de punto de venta
+# Espera 3 segundos para que el servicio FastAPI levante antes de abrir Chromium
+Exec=bash -c "sleep 3 && (command -v google-chrome-stable || command -v google-chrome || command -v chromium-browser || command -v chromium) | head -1 | xargs -I{} {} --kiosk --app=http://localhost:8000 --disable-pinch --overscroll-history-navigation=0 --disable-translate --no-first-run --disable-features=TranslateUI"
+Icon=/usr/share/kiosco-pos/logo.png
+Terminal=false
+Categories=Office;Finance;
+X-GNOME-Autostart-enabled=true

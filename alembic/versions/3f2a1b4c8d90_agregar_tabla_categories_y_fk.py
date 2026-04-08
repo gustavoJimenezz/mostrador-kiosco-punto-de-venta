@@ -24,33 +24,49 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Crea tabla categories y agrega FK en products.category_id."""
+    from sqlalchemy import inspect as sa_inspect
+
+    bind = op.get_bind()
+    existing_tables = sa_inspect(bind).get_table_names()
 
     # ------------------------------------------------------------------
     # categories — tabla de categorías (debe existir antes de la FK)
+    # Idempotente: si ya existe (ej. por una migración parcial previa),
+    # se omite la creación sin error.
     # ------------------------------------------------------------------
-    op.create_table(
-        "categories",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column("name", sa.String(100), nullable=False),
-        sa.UniqueConstraint("name", name="uq_categories_name"),
-        mysql_engine="InnoDB",
-        mysql_charset="utf8mb4",
-        mysql_collate="utf8mb4_unicode_ci",
-    )
-    op.create_index("ix_categories_name", "categories", ["name"])
+    if "categories" not in existing_tables:
+        op.create_table(
+            "categories",
+            sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+            sa.Column("name", sa.String(100), nullable=False),
+            sa.UniqueConstraint("name", name="uq_categories_name"),
+            mysql_engine="InnoDB",
+            mysql_charset="utf8mb4",
+            mysql_collate="utf8mb4_unicode_ci",
+        )
+        op.create_index("ix_categories_name", "categories", ["name"])
 
     # ------------------------------------------------------------------
     # products.category_id — agregar FK hacia categories.id
-    # La columna ya existe (sin FK) desde la migración inicial.
+    # SQLite no soporta ADD CONSTRAINT sobre tablas existentes; la FK
+    # se omite en SQLite y queda enforced por PRAGMA foreign_keys=ON
+    # definido en el engine (create_sqlite_engine). En MariaDB se agrega
+    # normalmente.
     # ------------------------------------------------------------------
-    op.create_foreign_key(
-        "fk_products_category_id",
-        "products",
-        "categories",
-        ["category_id"],
-        ["id"],
-        ondelete="SET NULL",
-    )
+    if bind.dialect.name != "sqlite":
+        existing_fks = [
+            fk["name"]
+            for fk in sa_inspect(bind).get_foreign_keys("products")
+        ]
+        if "fk_products_category_id" not in existing_fks:
+            op.create_foreign_key(
+                "fk_products_category_id",
+                "products",
+                "categories",
+                ["category_id"],
+                ["id"],
+                ondelete="SET NULL",
+            )
 
 
 def downgrade() -> None:

@@ -370,6 +370,7 @@ export default function POS() {
             </button>
           </div>
         </div>
+        
       </div>
 
       {/* Barra inferior de atajos */}

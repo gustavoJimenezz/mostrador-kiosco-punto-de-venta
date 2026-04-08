@@ -1,0 +1,22 @@
+[0;1;32m●[0m kiosco-pos.service - Kiosco POS — servidor FastAPI local
+     Loaded: loaded (]8;;file://gjimenez-Latitude-5480/usr/lib/systemd/system/kiosco-pos.service/usr/lib/systemd/system/kiosco-pos.service]8;;; [0;1;32menabled[0m; preset: [0;1;32menabled[0m)
+     Active: [0;1;32mactive (running)[0m since Tue 2026-04-07 18:46:18 -03; 36s ago
+       Docs: ]8;;https://github.com/gustavoJimenezz/mostrador-kiosco-punto-de-ventahttps://github.com/gustavoJimenezz/mostrador-kiosco-punto-de-venta]8;;
+    Process: 40656 ExecStartPre=/usr/lib/kiosco-pos/venv/bin/python3 -m alembic upgrade head (code=exited, status=0/SUCCESS)
+   Main PID: 40658 (python3)
+      Tasks: 7 (limit: 18868)
+     Memory: 70.3M (peak: 70.6M)
+        CPU: 1.570s
+     CGroup: /system.slice/kiosco-pos.service
+             └─[0;38;5;245m40658 /usr/lib/kiosco-pos/venv/bin/python3 web_main.py[0m
+
+Apr 07 18:46:19 gjimenez-Latitude-5480 python3[40658]: 2026-04-07 18:46:19 [INFO] uvicorn.error: Waiting for application startup.
+Apr 07 18:46:19 gjimenez-Latitude-5480 python3[40658]: 2026-04-07 18:46:19 [INFO] src.infrastructure.web.app: DATABASE_URL: sqlite:////var/lib/kiosco-pos/pos.db
+Apr 07 18:46:19 gjimenez-Latitude-5480 python3[40658]: 2026-04-07 18:46:19 [INFO] alembic.runtime.plugins: setup plugin alembic.autogenerate.schemas
+Apr 07 18:46:19 gjimenez-Latitude-5480 python3[40658]: 2026-04-07 18:46:19 [INFO] alembic.runtime.plugins: setup plugin alembic.autogenerate.tables
+Apr 07 18:46:19 gjimenez-Latitude-5480 python3[40658]: 2026-04-07 18:46:19 [INFO] alembic.runtime.plugins: setup plugin alembic.autogenerate.types
+Apr 07 18:46:19 gjimenez-Latitude-5480 python3[40658]: 2026-04-07 18:46:19 [INFO] alembic.runtime.plugins: setup plugin alembic.autogenerate.constraints
+Apr 07 18:46:19 gjimenez-Latitude-5480 python3[40658]: 2026-04-07 18:46:19 [INFO] alembic.runtime.plugins: setup plugin alembic.autogenerate.defaults
+Apr 07 18:46:19 gjimenez-Latitude-5480 python3[40658]: 2026-04-07 18:46:19 [INFO] alembic.runtime.plugins: setup plugin alembic.autogenerate.comments
+Apr 07 18:46:19 gjimenez-Latitude-5480 python3[40658]: INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+Apr 07 18:46:19 gjimenez-Latitude-5480 python3[40658]: INFO  [alembic.runtime.migration] Will assume non-transactional DDL.

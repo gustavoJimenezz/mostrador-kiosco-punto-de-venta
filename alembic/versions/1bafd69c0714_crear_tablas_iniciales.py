@@ -80,9 +80,10 @@ def upgrade() -> None:
         mysql_collate="utf8mb4_unicode_ci",
     )
     op.create_index("ix_products_barcode", "products", ["barcode"])
-    # FullText index para búsqueda fuzzy por nombre (meta: < 50ms con 5,000 registros).
-    # DDL explícito porque SQLAlchemy Core no abstrae CREATE FULLTEXT INDEX.
-    op.execute("CREATE FULLTEXT INDEX ix_products_name_fulltext ON products(name)")
+    # FullText index solo en MariaDB. En SQLite se usa ILIKE como fallback
+    # (ver SqliteProductRepository._search_by_name_fulltext).
+    if op.get_bind().dialect.name != "sqlite":
+        op.execute("CREATE FULLTEXT INDEX ix_products_name_fulltext ON products(name)")
 
     # ------------------------------------------------------------------
     # sales — UUID almacenado como CHAR(36)

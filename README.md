@@ -231,3 +231,12 @@ Elementos a eliminar:
 - Líneas `self._*_presenter = presenter` en cada setter `set_*_presenter()`
 - Línea del shortcut `Ctrl+R` en `_setup_shortcuts()`
 - Bloque completo delimitado por los comentarios `[DEV_ONLY]` (clase `_DEV_RELOAD_MAP` + método `_dev_reload_view()`)
+
+
+
+poetry run python3 web_main.py  
+
+cd frontend                                                                                                                                                                
+  npm run dev
+
+doc/2026-04-07-frontend-react-rediseno-ui-pyside6.md.

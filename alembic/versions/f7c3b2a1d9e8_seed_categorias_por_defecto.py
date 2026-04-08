@@ -28,9 +28,11 @@ CATEGORIAS_POR_DEFECTO = [
 
 
 def upgrade() -> None:
-    """Inserta las categorías por defecto. Usa INSERT IGNORE para idempotencia."""
+    """Inserta las categorías por defecto. Usa INSERT OR IGNORE / INSERT IGNORE para idempotencia."""
     placeholders = ", ".join(f"('{nombre}')" for nombre in CATEGORIAS_POR_DEFECTO)
-    op.execute(sa.text(f"INSERT IGNORE INTO categories (name) VALUES {placeholders}"))
+    # SQLite usa "INSERT OR IGNORE", MariaDB usa "INSERT IGNORE".
+    ignore_keyword = "OR IGNORE" if op.get_bind().dialect.name == "sqlite" else "IGNORE"
+    op.execute(sa.text(f"INSERT {ignore_keyword} INTO categories (name) VALUES {placeholders}"))
 
 
 def downgrade() -> None:
