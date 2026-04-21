@@ -12,19 +12,28 @@
  *   Esc      — cerrar dropdown / limpiar búsqueda
  */
 
-import { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import { useCartStore } from '../store/cartStore'
 import ChangeDialog from '../components/ChangeDialog'
+import { formatCents } from '../utils/changeCalc'
+
+interface Props {
+  cashCloseId: number | null
+}
 
 interface Product {
   id: number; barcode: string; name: string; current_price: string; stock: number
 }
 interface SaleResponse {
-  id: string; total_amount: string; payment_method: string; timestamp: string
+  id: string; total_amount: string; payment_method: string; timestamp: string; items: SaleItem[]
+}
+interface SaleItem {
+  product_name: string; quantity: number; price_at_sale: string; subtotal: string
 }
 interface TodaySale {
   id: string; timestamp: string; total_amount: string; payment_method: string
+  is_cancelled: boolean; cancelled_at: string | null; items: SaleItem[]
 }
 
 function fmtTime(iso: string) {
@@ -42,7 +51,7 @@ const METHOD_LABELS: Record<string, string> = {
   TRANSFERENCIA: 'Transf.',
 }
 
-export default function POS() {
+export default function POS({ cashCloseId }: Props) {
   const [input, setInput] = useState('')
   const [results, setResults] = useState<Product[]>([])
   const [highlighted, setHighlighted] = useState(-1)
@@ -50,6 +59,8 @@ export default function POS() {
   const [processing, setProcessing] = useState(false)
   const [showChange, setShowChange] = useState(false)
   const [todaySales, setTodaySales] = useState<TodaySale[]>([])
+  const [expandedSaleId, setExpandedSaleId] = useState<string | null>(null)
+  const [hoveredSaleId, setHoveredSaleId] = useState<string | null>(null)
 
   const { items, addItem, removeItem, updateQty, clear, total } = useCartStore()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -81,11 +92,7 @@ export default function POS() {
   // F4, F12, Supr — manejados en este componente
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'F4') {
-        e.preventDefault()
-        handleSale('EFECTIVO')
-      }
-      if (e.key === 'F12') {
+      if (e.key === 'F4' || e.key === 'F12') {
         e.preventDefault()
         if (items.length > 0 && !processing) setShowChange(true)
       }
@@ -171,7 +178,7 @@ export default function POS() {
     }
   }
 
-  const handleSale = async (paymentMethod: string) => {
+  const handleSale = async (paymentMethod: string, changeCents?: number) => {
     if (items.length === 0 || processing) return
     setProcessing(true)
     setShowChange(false)
@@ -179,8 +186,12 @@ export default function POS() {
       const sale = await api.post<SaleResponse>('/sales', {
         items: items.map((i) => ({ product_id: i.product_id, qty: i.qty })),
         payment_method: paymentMethod,
+        cash_close_id: cashCloseId,
       })
-      setMessage({ text: `✓ Venta confirmada — Total: $${sale.total_amount}`, type: 'success' })
+      const changeStr = changeCents !== undefined && changeCents > 0
+        ? ` | Vuelto: $${formatCents(changeCents)}`
+        : ''
+      setMessage({ text: `✓ Venta confirmada — Total: $${sale.total_amount}${changeStr}`, type: 'success' })
       setTodaySales((prev) => [...prev, sale])
       clear()
     } catch (err: unknown) {
@@ -206,11 +217,20 @@ export default function POS() {
 
   const totalStr = total()
   const todayTotal = todaySales
+    .filter(s => !s.is_cancelled)
     .reduce((acc, s) => acc + parseFloat(s.total_amount), 0)
     .toFixed(2)
 
   return (
-    <div className="pos-wrapper">
+    <div
+      className="pos-wrapper"
+      onMouseDown={(e) => {
+        if (showChange) return
+        if (e.target === inputRef.current) return
+        e.preventDefault()
+        inputRef.current?.focus()
+      }}
+    >
       <div className="pos-layout">
         {/* Panel izquierdo: búsqueda + carrito */}
         <div className="pos-main">
@@ -348,11 +368,45 @@ export default function POS() {
                   </tr>
                 )}
                 {todaySales.map((s) => (
-                  <tr key={s.id}>
-                    <td className="font-mono">{fmtTime(s.timestamp)}</td>
-                    <td>{METHOD_LABELS[s.payment_method] ?? s.payment_method}</td>
-                    <td className="td-right font-mono font-bold">${s.total_amount}</td>
-                  </tr>
+                  <React.Fragment key={s.id}>
+                    <tr
+                      style={{
+                        cursor: 'pointer',
+                        background: s.is_cancelled
+                          ? 'var(--error-light, rgba(220,53,69,0.06))'
+                          : hoveredSaleId === s.id ? 'var(--primary-light)' : undefined,
+                        opacity: s.is_cancelled ? 0.65 : 1,
+                        transition: 'background 0.15s',
+                      }}
+                      onClick={() => setExpandedSaleId(expandedSaleId === s.id ? null : s.id)}
+                      onMouseEnter={() => setHoveredSaleId(s.id)}
+                      onMouseLeave={() => setHoveredSaleId(null)}
+                      title={s.is_cancelled ? 'Cancelada' : 'Click para ver detalle'}
+                    >
+                      <td className="font-mono" style={s.is_cancelled ? { textDecoration: 'line-through' } : {}}>{fmtTime(s.timestamp)}</td>
+                      <td style={{ color: s.is_cancelled ? 'var(--error, #dc3545)' : undefined, fontSize: 11 }}>
+                        {s.is_cancelled ? 'Cancelada' : (METHOD_LABELS[s.payment_method] ?? s.payment_method)}
+                      </td>
+                      <td className="td-right font-mono font-bold" style={s.is_cancelled ? { textDecoration: 'line-through', color: 'var(--text-hint)' } : {}}>${s.total_amount}</td>
+                    </tr>
+                    {expandedSaleId === s.id && s.items.length > 0 && (
+                      <tr>
+                        <td colSpan={3} style={{ padding: 0, background: 'var(--primary-light)', borderBottom: '1px solid var(--border)' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                            <tbody>
+                              {s.items.map((item, i) => (
+                                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                                  <td style={{ padding: '3px 8px', color: 'var(--text-primary)' }}>{item.product_name}</td>
+                                  <td style={{ padding: '3px 4px', textAlign: 'center', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>×{item.quantity}</td>
+                                  <td style={{ padding: '3px 8px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: 'var(--primary)', whiteSpace: 'nowrap' }}>${item.subtotal}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
@@ -361,7 +415,7 @@ export default function POS() {
           {/* Botón principal cobrar */}
           <button
             className="btn btn-success btn-lg btn-full cobrar-btn"
-            onClick={() => handleSale('EFECTIVO')}
+            onClick={() => { if (items.length > 0 && !processing) setShowChange(true) }}
             disabled={items.length === 0 || processing}
           >
             F4 - Cobrar
@@ -402,7 +456,7 @@ export default function POS() {
       {showChange && (
         <ChangeDialog
           total={totalStr}
-          onConfirm={() => handleSale('EFECTIVO')}
+          onConfirm={(paymentMethod, changeCents) => handleSale(paymentMethod, changeCents)}
           onCancel={() => { setShowChange(false); refocusInput() }}
         />
       )}

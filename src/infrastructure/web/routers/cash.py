@@ -96,16 +96,23 @@ def get_cash_state(
             expected_cash="0.00",
         )
 
+    totals = cash_repo.get_sales_totals_for_session(cash_close.id)
+    total_cash = totals.get("EFECTIVO", Decimal("0.00"))
+    total_debit = totals.get("DEBITO", Decimal("0.00"))
+    total_transfer = totals.get("TRANSFERENCIA", Decimal("0.00"))
+    total_all = total_cash + total_debit + total_transfer
+    expected = cash_close.opening_amount + total_cash
+
     return CashStateResponse(
         id=cash_close.id,
         is_open=cash_close.is_open,
         opened_at=cash_close.opened_at.isoformat(),
         opening_amount=str(cash_close.opening_amount),
-        total_sales_cash=str(cash_close.total_sales_cash),
-        total_sales_debit=str(cash_close.total_sales_debit),
-        total_sales_transfer=str(cash_close.total_sales_transfer),
-        total_sales=str(cash_close.total_sales.amount),
-        expected_cash=str(cash_close.expected_cash.amount),
+        total_sales_cash=str(total_cash),
+        total_sales_debit=str(total_debit),
+        total_sales_transfer=str(total_transfer),
+        total_sales=str(total_all),
+        expected_cash=str(expected),
     )
 
 
@@ -135,16 +142,21 @@ def open_cash(
         session.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
+    open_totals = cash_repo.get_sales_totals_for_session(cash_close.id)
+    ot_cash = open_totals.get("EFECTIVO", Decimal("0.00"))
+    ot_debit = open_totals.get("DEBITO", Decimal("0.00"))
+    ot_transfer = open_totals.get("TRANSFERENCIA", Decimal("0.00"))
+
     return CashStateResponse(
         id=cash_close.id,
         is_open=cash_close.is_open,
         opened_at=cash_close.opened_at.isoformat(),
         opening_amount=str(cash_close.opening_amount),
-        total_sales_cash=str(cash_close.total_sales_cash),
-        total_sales_debit=str(cash_close.total_sales_debit),
-        total_sales_transfer=str(cash_close.total_sales_transfer),
-        total_sales=str(cash_close.total_sales.amount),
-        expected_cash=str(cash_close.expected_cash.amount),
+        total_sales_cash=str(ot_cash),
+        total_sales_debit=str(ot_debit),
+        total_sales_transfer=str(ot_transfer),
+        total_sales=str(ot_cash + ot_debit + ot_transfer),
+        expected_cash=str(cash_close.opening_amount + ot_cash),
     )
 
 

@@ -1,14 +1,21 @@
 /**
  * Vista de historial de ventas (F2 en panel admin).
  * Muestra ventas del día seleccionado con detalle de ítems por venta.
+ * Permite cancelar ventas (solo admin) con restauración de stock.
  */
 
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { api } from '../../api/client'
 
 interface SaleItem { product_name: string; quantity: number; price_at_sale: string; subtotal: string }
 interface Sale {
-  id: string; timestamp: string; total_amount: string; payment_method: string; items: SaleItem[]
+  id: string
+  timestamp: string
+  total_amount: string
+  payment_method: string
+  is_cancelled: boolean
+  cancelled_at: string | null
+  items: SaleItem[]
 }
 
 const METHOD_LABEL: Record<string, string> = {
@@ -30,7 +37,9 @@ export default function SalesHistoryView() {
   const [sales, setSales] = useState<Sale[]>([])
   const [loading, setLoading] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [cancelling, setCancelling] = useState<string | null>(null)
 
   const load = async () => {
     setLoading(true)
@@ -48,11 +57,32 @@ export default function SalesHistoryView() {
 
   useEffect(() => { load() }, [date])
 
-  const totalDay = sales.reduce((a, s) => a + parseFloat(s.total_amount), 0)
-  const countByMethod = sales.reduce((acc, s) => {
+  const handleCancel = async (sale: Sale) => {
+    const confirm = window.confirm(
+      `¿Cancelar esta venta de $${sale.total_amount}?\n` +
+      `El stock de los productos será restaurado.`
+    )
+    if (!confirm) return
+
+    setCancelling(sale.id)
+    try {
+      await api.delete(`/sales/${sale.id}`)
+      await load()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al cancelar la venta')
+    } finally {
+      setCancelling(null)
+    }
+  }
+
+  // Solo ventas activas para totales del día
+  const activeSales = sales.filter(s => !s.is_cancelled)
+  const totalDay = activeSales.reduce((a, s) => a + parseFloat(s.total_amount), 0)
+  const countByMethod = activeSales.reduce((acc, s) => {
     acc[s.payment_method] = (acc[s.payment_method] || 0) + parseFloat(s.total_amount)
     return acc
   }, {} as Record<string, number>)
+  const cancelledCount = sales.filter(s => s.is_cancelled).length
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -72,7 +102,10 @@ export default function SalesHistoryView() {
           <div className="card" style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Total ventas</div>
             <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--success)' }}>${totalDay.toFixed(2)}</div>
-            <div style={{ fontSize: 11, color: 'var(--text-hint)' }}>{sales.length} operacion{sales.length !== 1 ? 'es' : ''}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-hint)' }}>
+              {activeSales.length} operacion{activeSales.length !== 1 ? 'es' : ''}
+              {cancelledCount > 0 && <span style={{ color: 'var(--error)', marginLeft: 4 }}>({cancelledCount} cancelada{cancelledCount !== 1 ? 's' : ''})</span>}
+            </div>
           </div>
           {Object.entries(countByMethod).map(([method, total]) => (
             <div key={method} className="card" style={{ textAlign: 'center' }}>
@@ -95,7 +128,7 @@ export default function SalesHistoryView() {
                 <th>Método</th>
                 <th>Ítems</th>
                 <th className="td-right">Total</th>
-                <th style={{ width: 80 }}></th>
+                <th style={{ width: 120 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -103,17 +136,42 @@ export default function SalesHistoryView() {
                 <tr><td colSpan={5} className="td-center" style={{ padding: '32px 0', color: 'var(--text-hint)' }}>Sin ventas para este día</td></tr>
               )}
               {sales.map((s) => (
-                <>
-                  <tr key={s.id} style={{ cursor: 'pointer' }} onClick={() => setExpanded(expanded === s.id ? null : s.id)}>
-                    <td className="td-mono text-secondary">{fmtTime(s.timestamp)}</td>
-                    <td><span className={`badge ${METHOD_BADGE[s.payment_method] ?? 'badge-secondary'}`}>{METHOD_LABEL[s.payment_method] ?? s.payment_method}</span></td>
+                <React.Fragment key={s.id}>
+                  <tr
+                    style={{
+                      cursor: 'pointer',
+                      background: s.is_cancelled
+                        ? 'var(--error-light, rgba(220,53,69,0.06))'
+                        : hoveredId === s.id ? 'var(--primary-light)' : undefined,
+                      opacity: s.is_cancelled ? 0.65 : 1,
+                      transition: 'background 0.15s',
+                    }}
+                    onClick={() => setExpanded(expanded === s.id ? null : s.id)}
+                    onMouseEnter={() => setHoveredId(s.id)}
+                    onMouseLeave={() => setHoveredId(null)}
+                    title={s.is_cancelled ? `Cancelada el ${fmtTime(s.cancelled_at!)}` : 'Click para ver detalle'}
+                  >
+                    <td className="td-mono text-secondary" style={s.is_cancelled ? { textDecoration: 'line-through' } : {}}>
+                      {fmtTime(s.timestamp)}
+                    </td>
+                    <td>
+                      {s.is_cancelled
+                        ? <span className="badge badge-secondary">Cancelada</span>
+                        : <span className={`badge ${METHOD_BADGE[s.payment_method] ?? 'badge-secondary'}`}>{METHOD_LABEL[s.payment_method] ?? s.payment_method}</span>
+                      }
+                    </td>
                     <td className="text-secondary">{s.items.length} ítem{s.items.length !== 1 ? 's' : ''}</td>
-                    <td className="td-right td-mono font-bold" style={{ color: 'var(--primary)' }}>${s.total_amount}</td>
+                    <td
+                      className="td-right td-mono font-bold"
+                      style={{ color: s.is_cancelled ? 'var(--text-hint)' : 'var(--primary)', textDecoration: s.is_cancelled ? 'line-through' : undefined }}
+                    >
+                      ${s.total_amount}
+                    </td>
                     <td className="td-center text-secondary" style={{ fontSize: 11 }}>{expanded === s.id ? '▲ ocultar' : '▼ detalle'}</td>
                   </tr>
                   {expanded === s.id && (
-                    <tr key={`${s.id}-detail`}>
-                      <td colSpan={5} style={{ padding: 0, background: 'var(--primary-light)' }}>
+                    <tr>
+                      <td colSpan={5} style={{ padding: 0, background: s.is_cancelled ? 'rgba(220,53,69,0.04)' : 'var(--primary-light)' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                           <thead>
                             <tr style={{ borderBottom: '1px solid var(--border)' }}>
@@ -134,10 +192,27 @@ export default function SalesHistoryView() {
                             ))}
                           </tbody>
                         </table>
+                        {!s.is_cancelled && (
+                          <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
+                            <button
+                              className="btn btn-danger"
+                              style={{ fontSize: 12, padding: '4px 14px' }}
+                              disabled={cancelling === s.id}
+                              onClick={(e) => { e.stopPropagation(); handleCancel(s) }}
+                            >
+                              {cancelling === s.id ? 'Cancelando…' : 'Cancelar venta'}
+                            </button>
+                          </div>
+                        )}
+                        {s.is_cancelled && s.cancelled_at && (
+                          <div style={{ padding: '6px 16px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--error, #dc3545)' }}>
+                            Cancelada a las {fmtTime(s.cancelled_at)} — stock restaurado
+                          </div>
+                        )}
                       </td>
                     </tr>
                   )}
-                </>
+                </React.Fragment>
               ))}
             </tbody>
           </table>

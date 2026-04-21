@@ -82,6 +82,8 @@ class MariadbSaleRepository:
                     total_amount=sale.total_amount.amount,
                     payment_method=sale.payment_method.value,
                     cash_close_id=sale.cash_close_id,
+                    is_cancelled=False,
+                    cancelled_at=None,
                 )
             )
 
@@ -152,6 +154,8 @@ class MariadbSaleRepository:
                 cash_close_id=row.cash_close_id,
                 id=UUID(row.id),
                 total_snapshot=Decimal(str(row.total_amount)),
+                is_cancelled=bool(row.is_cancelled),
+                cancelled_at=row.cancelled_at,
             )
             for row in rows
         ]
@@ -178,6 +182,71 @@ class MariadbSaleRepository:
         ).fetchall()
 
         return {row.payment_method: Decimal(str(row.total)) for row in rows}
+
+    def cancel_sale(self, sale_id: UUID) -> None:
+        """Cancela una venta y restaura el stock de forma atómica.
+
+        Operaciones dentro de la transacción (en orden):
+        1. Verifica que la venta exista y no esté ya cancelada.
+        2. UPDATE ``sales`` → is_cancelled=True, cancelled_at=ahora.
+        3. UPDATE ``products.stock`` incrementando la cantidad de cada ítem.
+        4. Si la venta tenía arqueo asociado, descuenta el total del método de pago.
+        5. COMMIT.
+
+        Args:
+            sale_id: UUID de la venta a cancelar.
+
+        Raises:
+            ValueError: Si la venta no existe o ya está cancelada.
+            Exception: Propaga el error original tras ejecutar rollback.
+        """
+        row = self._session.execute(
+            sales_table.select().where(sales_table.c.id == str(sale_id))
+        ).fetchone()
+
+        if row is None:
+            raise ValueError(f"Venta {sale_id} no encontrada.")
+        if row.is_cancelled:
+            raise ValueError(f"La venta {sale_id} ya está cancelada.")
+
+        items = self._session.execute(
+            sale_items_table.select().where(sale_items_table.c.sale_id == str(sale_id))
+        ).fetchall()
+
+        try:
+            self._session.execute(
+                sales_table.update()
+                .where(sales_table.c.id == str(sale_id))
+                .values(is_cancelled=True, cancelled_at=datetime.now())
+            )
+
+            for item in items:
+                self._session.execute(
+                    products_table.update()
+                    .where(products_table.c.id == item.product_id)
+                    .values(stock=products_table.c.stock + item.quantity)
+                )
+
+            if row.cash_close_id is not None:
+                payment = row.payment_method
+                total = Decimal(str(row.total_amount))
+                if payment == PaymentMethod.CASH.value:
+                    col = cash_closes_table.c.total_sales_cash
+                elif payment == PaymentMethod.DEBIT.value:
+                    col = cash_closes_table.c.total_sales_debit
+                else:
+                    col = cash_closes_table.c.total_sales_transfer
+                self._session.execute(
+                    cash_closes_table.update()
+                    .where(cash_closes_table.c.id == row.cash_close_id)
+                    .values({col.key: col - total})
+                )
+
+            self._session.commit()
+
+        except Exception:
+            self._session.rollback()
+            raise
 
     def get_sale_items_with_names(self, sale_id: UUID) -> list[dict]:
         """Carga los ítems de una venta con el nombre del producto.

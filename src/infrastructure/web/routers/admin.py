@@ -20,14 +20,18 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from uuid import UUID
+
 from src.domain.models.product import Product
 from src.domain.models.category import Category
 from src.infrastructure.persistence.sqlite_product_repository import SqliteProductRepository
 from src.infrastructure.persistence.mariadb_category_repository import MariaDbCategoryRepository
+from src.infrastructure.persistence.mariadb_sale_repository import MariadbSaleRepository
 from src.infrastructure.persistence.mariadb_user_repository import MariadbUserRepository
 from src.infrastructure.web.dependencies import (
     get_category_repo,
     get_product_repo,
+    get_sale_repo,
     get_session,
     get_user_repo,
     require_admin,
@@ -80,6 +84,10 @@ class CategoryResponse(BaseModel):
 
 
 class CategoryCreateRequest(BaseModel):
+    name: str
+
+
+class CategoryUpdateRequest(BaseModel):
     name: str
 
 
@@ -260,6 +268,26 @@ def create_category(
     return CategoryResponse(id=saved.id, name=saved.name)
 
 
+@router.put("/categories/{category_id}", response_model=CategoryResponse)
+def update_category(
+    category_id: int,
+    body: CategoryUpdateRequest,
+    session: Session = Depends(get_session),
+    category_repo: MariaDbCategoryRepository = Depends(get_category_repo),
+    _auth: dict = Depends(require_admin),
+):
+    """Actualiza el nombre de una categoría existente."""
+    try:
+        category = Category(name=body.name.strip(), id=category_id)
+        saved = category_repo.save(category)
+        session.commit()
+    except ValueError as exc:
+        session.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    return CategoryResponse(id=saved.id, name=saved.name)
+
+
 @router.delete("/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_category(
     category_id: int,
@@ -267,9 +295,37 @@ def delete_category(
     category_repo: MariaDbCategoryRepository = Depends(get_category_repo),
     _auth: dict = Depends(require_admin),
 ):
-    """Elimina una categoría."""
+    """Elimina una categoría. Los productos asociados quedan sin categoría (SET NULL)."""
     category_repo.delete(category_id)
     session.commit()
+
+
+# ---------------------------------------------------------------------------
+# Ventas — cancelación
+# ---------------------------------------------------------------------------
+
+@router.delete("/sales/{sale_id}", status_code=status.HTTP_204_NO_CONTENT)
+def cancel_sale(
+    sale_id: str,
+    sale_repo: MariadbSaleRepository = Depends(get_sale_repo),
+    _auth: dict = Depends(require_admin),
+):
+    """Cancela una venta y restaura el stock de sus ítems.
+
+    Operación de soft delete: marca la venta como cancelada y revierte
+    el stock. Solo accesible por ADMIN.
+
+    Raises:
+        HTTPException 404: Si la venta no existe.
+        HTTPException 409: Si la venta ya está cancelada.
+    """
+    try:
+        sale_repo.cancel_sale(UUID(sale_id))
+    except ValueError as exc:
+        msg = str(exc)
+        if "no encontrada" in msg:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from exc
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=msg) from exc
 
 
 # ---------------------------------------------------------------------------

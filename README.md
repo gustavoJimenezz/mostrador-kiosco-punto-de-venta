@@ -93,6 +93,36 @@ sudo dpkg -r kiosco-pos
 
 ---
 
+## Correr en modo desarrollo
+
+Requiere Docker corriendo para la base de datos.
+
+**Terminal 1 — Base de datos**
+```bash
+docker compose up -d
+```
+
+**Terminal 2 — Backend FastAPI**
+```bash
+# Aplicar migraciones (solo si hay cambios de esquema)
+poetry run alembic upgrade head
+
+# Levantar el servidor
+poetry run python3 web_main.py
+```
+
+**Terminal 3 — Frontend React**
+```bash
+cd frontend
+npm run dev
+```
+
+La app queda disponible en:
+- Frontend (con hot-reload): `http://localhost:5173`
+- Backend API: `http://localhost:8000`
+
+---
+
 ## Requisitos previos
 
 Tener instalado antes de comenzar:

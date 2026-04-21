@@ -130,6 +130,8 @@ sales_table = Table(
         ForeignKey("cash_closes.id", ondelete="SET NULL"),
         nullable=True,
     ),
+    Column("is_cancelled", Boolean, nullable=False, server_default="0"),
+    Column("cancelled_at", DateTime, nullable=True),
 )
 
 # ---------------------------------------------------------------------------

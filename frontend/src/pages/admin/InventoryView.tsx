@@ -54,9 +54,11 @@ export default function InventoryView() {
   const [form, setForm] = useState<FormData>(emptyForm)
   const [saving, setSaving] = useState(false)
 
-  // Categorías modal
+  // Categorías
   const [newCatName, setNewCatName] = useState('')
   const [catMsg, setCatMsg] = useState('')
+  const [editingCatId, setEditingCatId] = useState<number | null>(null)
+  const [editingCatName, setEditingCatName] = useState('')
 
   const load = async () => {
     try {
@@ -140,12 +142,43 @@ export default function InventoryView() {
     e.preventDefault()
     try {
       const cat = await api.post<Category>('/categories', { name: newCatName })
-      setCategories((prev) => [...prev, cat])
+      setCategories((prev) => [...prev, cat].sort((a, b) => a.name.localeCompare(b.name)))
       setNewCatName('')
       setCatMsg('Categoría creada')
       setTimeout(() => setCatMsg(''), 2000)
     } catch (err: unknown) {
       setCatMsg(err instanceof Error ? err.message : 'Error')
+    }
+  }
+
+  const startEditCat = (cat: Category) => {
+    setEditingCatId(cat.id)
+    setEditingCatName(cat.name)
+  }
+
+  const handleUpdateCat = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (editingCatId === null) return
+    try {
+      const updated = await api.put<Category>(`/categories/${editingCatId}`, { name: editingCatName })
+      setCategories((prev) => prev.map((c) => c.id === editingCatId ? updated : c))
+      setEditingCatId(null)
+      setCatMsg('Categoría actualizada')
+      setTimeout(() => setCatMsg(''), 2000)
+    } catch (err: unknown) {
+      setCatMsg(err instanceof Error ? err.message : 'Error al actualizar')
+    }
+  }
+
+  const handleDeleteCat = async (cat: Category) => {
+    if (!confirm(`¿Eliminar la categoría "${cat.name}"? Los productos asociados quedarán sin categoría.`)) return
+    try {
+      await api.delete(`/categories/${cat.id}`)
+      setCategories((prev) => prev.filter((c) => c.id !== cat.id))
+      setCatMsg('Categoría eliminada')
+      setTimeout(() => setCatMsg(''), 2000)
+    } catch (err: unknown) {
+      setCatMsg(err instanceof Error ? err.message : 'Error al eliminar')
     }
   }
 
@@ -188,12 +221,38 @@ export default function InventoryView() {
         </div>
       </div>
 
-      {/* Categorías rápidas */}
+      {/* Categorías */}
       <div className="groupbox" style={{ paddingBottom: 10 }}>
         <div className="groupbox-title" style={{ marginBottom: 8 }}>Categorías</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           {categories.map((c) => (
-            <span key={c.id} className="badge badge-info">{c.name}</span>
+            editingCatId === c.id ? (
+              <form key={c.id} onSubmit={handleUpdateCat} style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                <input
+                  className="input" value={editingCatName}
+                  onChange={(e) => setEditingCatName(e.target.value)}
+                  style={{ width: 150 }} autoFocus required
+                />
+                <button type="submit" className="btn btn-primary btn-sm">✓</button>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setEditingCatId(null)}>✕</button>
+              </form>
+            ) : (
+              <span key={c.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <span className="badge badge-info">{c.name}</span>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  style={{ padding: '1px 6px', fontSize: 11 }}
+                  onClick={() => startEditCat(c)}
+                  title="Editar categoría"
+                >✎</button>
+                <button
+                  className="btn btn-danger btn-sm"
+                  style={{ padding: '1px 6px', fontSize: 11 }}
+                  onClick={() => handleDeleteCat(c)}
+                  title="Eliminar categoría"
+                >✕</button>
+              </span>
+            )
           ))}
           <form onSubmit={handleCreateCat} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <input
@@ -291,12 +350,8 @@ export default function InventoryView() {
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Stock inicial</label>
+                  <label className="form-label">Stock actual</label>
                   <input type="number" min="0" className="input" value={form.stock} onChange={(e) => setField('stock', e.target.value)} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Stock mínimo</label>
-                  <input type="number" min="0" className="input" value={form.min_stock} onChange={(e) => setField('min_stock', e.target.value)} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Categoría</label>

@@ -108,6 +108,8 @@ class Sale:
     cash_close_id: Optional[int] = None
     id: UUID = field(default_factory=uuid4, compare=False)
     total_snapshot: Optional[Decimal] = field(default=None, compare=False)
+    is_cancelled: bool = field(default=False, compare=False)
+    cancelled_at: Optional[datetime] = field(default=None, compare=False)
 
     def __post_init__(self) -> None:
         """Valida que la venta tenga al menos un ítem al crear una venta nueva.

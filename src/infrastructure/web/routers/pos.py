@@ -225,6 +225,8 @@ def list_sales(
             "timestamp": sale.timestamp.isoformat(),
             "total_amount": str(sale.total_amount.amount),
             "payment_method": sale.payment_method.value,
+            "is_cancelled": sale.is_cancelled,
+            "cancelled_at": sale.cancelled_at.isoformat() if sale.cancelled_at else None,
             "items": [
                 {
                     "product_name": row.get("product_name", ""),
