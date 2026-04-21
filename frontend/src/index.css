@@ -440,6 +440,7 @@ select.input { cursor: pointer; }
 .search-dropdown-item:hover,
 .search-dropdown-item.highlighted { background: var(--surface-hover); }
 .search-dropdown-item .item-name { flex: 1; }
+.search-dropdown-item .item-barcode { color: var(--text-hint); font-family: monospace; font-size: 11px; white-space: nowrap; }
 .search-dropdown-item .item-price { color: var(--primary); font-weight: 700; font-size: 13px; white-space: nowrap; }
 .search-dropdown-item .item-stock { color: var(--text-hint); font-size: 11px; white-space: nowrap; }
 

@@ -137,6 +137,34 @@ def search_products(
     ]
 
 
+@router.get("/products/search-barcode", response_model=list[ProductResponse])
+def search_products_by_barcode(
+    q: str = Query(..., min_length=1, description="Dígitos parciales del código de barras"),
+    product_repo: SqliteProductRepository = Depends(get_product_repo),
+    _auth: dict = Depends(require_auth),
+):
+    """Busca productos por coincidencia parcial de código de barras.
+
+    Permite buscar ingresando solo parte del barcode (ej: "7790" retorna
+    todos los productos cuyo código contiene esa secuencia).
+
+    Returns:
+        Lista de hasta 50 productos cuyo barcode contiene ``q``.
+    """
+    products = product_repo.search_by_barcode(q)
+    return [
+        ProductResponse(
+            id=p.id,
+            barcode=p.barcode,
+            name=p.name,
+            current_price=str(p.current_price.amount),
+            stock=p.stock,
+            category_id=p.category_id,
+        )
+        for p in products
+    ]
+
+
 @router.post("/sales", response_model=SaleResponse, status_code=status.HTTP_201_CREATED)
 def process_sale(
     body: SaleRequest,

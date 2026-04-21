@@ -18,6 +18,14 @@ import { useCartStore } from '../store/cartStore'
 import ChangeDialog from '../components/ChangeDialog'
 import { formatCents } from '../utils/changeCalc'
 
+/** Parsea "N * término" → {qty, term}. Retorna null si no hay prefijo de cantidad. */
+function parseQtyPrefix(raw: string): { qty: number; term: string } | null {
+  const match = raw.match(/^(\d+)\s*\*\s*(.+)$/)
+  if (!match) return null
+  const qty = parseInt(match[1], 10)
+  return qty > 0 ? { qty, term: match[2].trim() } : null
+}
+
 interface Props {
   cashCloseId: number | null
 }
@@ -70,14 +78,6 @@ export default function POS({ cashCloseId }: Props) {
     setTimeout(() => inputRef.current?.focus(), 0)
   }
 
-  /** Parsea "N * término" → {qty, term}. Retorna null si no hay prefijo de cantidad. */
-  const parseQtyPrefix = (raw: string): { qty: number; term: string } | null => {
-    const match = raw.match(/^(\d+)\s*\*\s*(.+)$/)
-    if (!match) return null
-    const qty = parseInt(match[1], 10)
-    return qty > 0 ? { qty, term: match[2].trim() } : null
-  }
-
   const loadTodaySales = async () => {
     try {
       const sales = await api.get<TodaySale[]>(`/sales?date=${todayStr()}`)
@@ -88,6 +88,33 @@ export default function POS({ cashCloseId }: Props) {
   }
 
   useEffect(() => { loadTodaySales() }, [])
+
+  // Búsqueda en tiempo real: 300ms después del último cambio en el input
+  useEffect(() => {
+    const raw = input.trim()
+    const parsed = parseQtyPrefix(raw)
+    const q = parsed?.term ?? raw
+
+    // Mínimo 2 caracteres para evitar resultados masivos
+    if (q.length < 2) return
+
+    const timer = setTimeout(async () => {
+      try {
+        let found: Product[]
+        if (/^\d+$/.test(q)) {
+          found = await api.get<Product[]>(`/products/search-barcode?q=${encodeURIComponent(q)}`)
+        } else {
+          found = await api.get<Product[]>(`/products/search?q=${encodeURIComponent(q)}`)
+        }
+        setResults(found)
+        setHighlighted(found.length > 0 ? 0 : -1)
+      } catch {
+        // silencioso: el usuario puede seguir escribiendo
+      }
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [input])
 
   // F4, F12, Supr — manejados en este componente
   useEffect(() => {
@@ -157,8 +184,23 @@ export default function POS({ cashCloseId }: Props) {
 
     try {
       if (/^\d+$/.test(q)) {
-        const product = await api.get<Product>(`/products/barcode/${q}`)
-        selectProduct(product, qty)
+        try {
+          const product = await api.get<Product>(`/products/barcode/${q}`)
+          selectProduct(product, qty)
+        } catch {
+          // Sin coincidencia exacta → buscar por coincidencia parcial de barcode
+          const found = await api.get<Product[]>(`/products/search-barcode?q=${encodeURIComponent(q)}`)
+          if (found.length === 0) {
+            setMessage({ text: `No se encontró código "${q}"`, type: 'error' })
+            setResults([])
+            setInput('')
+          } else if (found.length === 1) {
+            selectProduct(found[0], qty)
+          } else {
+            setResults(found)
+            setHighlighted(0)
+          }
+        }
       } else {
         const found = await api.get<Product[]>(`/products/search?q=${encodeURIComponent(q)}`)
         if (found.length === 0) {
@@ -268,6 +310,7 @@ export default function POS({ cashCloseId }: Props) {
                     onClick={() => selectProduct(p)}
                   >
                     <span className="item-name">{p.name}</span>
+                    <span className="item-barcode">{p.barcode}</span>
                     <span className="item-stock">Stock: {p.stock}</span>
                     <span className="item-price">${p.current_price}</span>
                   </div>

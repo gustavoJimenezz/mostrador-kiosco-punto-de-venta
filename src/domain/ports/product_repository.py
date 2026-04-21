@@ -79,6 +79,17 @@ class ProductRepository(Protocol):
         """
         ...
 
+    def search_by_barcode(self, query: str) -> list[Product]:
+        """Busca productos por coincidencia parcial de código de barras.
+
+        Args:
+            query: Secuencia parcial de dígitos a buscar en el barcode.
+
+        Returns:
+            Lista de hasta 50 productos cuyo barcode contiene el query.
+        """
+        ...
+
     def list_all(self) -> list[Product]:
         """Retorna todos los productos del catálogo.
 

@@ -182,6 +182,27 @@ class MariadbProductRepository:
 
         return results
 
+    def search_by_barcode(self, query: str) -> list[Product]:
+        """Busca productos por coincidencia parcial de código de barras.
+
+        Permite encontrar productos escribiendo solo parte del barcode
+        (ej: "7790" retorna todos los productos cuyo código contiene "7790").
+
+        Args:
+            query: Secuencia parcial de dígitos a buscar en el barcode.
+
+        Returns:
+            Lista de hasta 50 productos cuyo barcode contiene ``query``,
+            ordenados por código de barras.
+        """
+        stmt = (
+            select(Product)
+            .where(Product.barcode.contains(query))
+            .order_by(Product.barcode)
+            .limit(50)
+        )
+        return list(self._session.execute(stmt).scalars().all())
+
     def list_all(self) -> list[Product]:
         """Retorna todos los productos del catálogo ordenados por nombre.
 
