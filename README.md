@@ -1,6 +1,6 @@
 # Mostrador Kiosco — Punto de Venta
 
-Sistema POS offline-first para kioscos en Argentina. Soporta operación sin internet, historial de precios ante inflación y navegación keyboard-first (F1-F12).
+Sistema POS offline-first para kioscos en Argentina. Soporta operación sin internet, historial de precios y navegación keyboard-first (F1-F12).
 
 > **Descargar instalador (Windows):** [Releases → Instalar_Kiosco_POS.exe](https://github.com/gustavoJimenezz/mostrador-kiosco-punto-de-venta/releases)
 >
