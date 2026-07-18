@@ -20,38 +20,12 @@ kiosco_pos/
 ├── alembic/                   # Migraciones de DB
 └── requirements.txt
 
-Diagrama de Datos (UML / ERD)
-Para un kiosco en Argentina, la tabla price_history es vital para entender la rentabilidad histórica frente a la inflación.
-
-Relaciones Clave:
-Product (1) ↔ PriceHistory (N): Cada vez que cambia el costo o el margen, se guarda un registro. No solo sobreescribimos el precio actual.
-
-Sale (1) ↔ SaleItem (N): La venta guarda el total, pero cada SaleItem guarda el price_at_sale. Si el producto aumenta mañana, la venta de ayer no debe cambiar su valor.
-
-StockLog: Registro de movimientos (entrada por compra, salida por venta, ajuste manual).
-
-🔄 Flujo de Trabajo: El "Cerebro" en Acción
-Entrada (Primary Adapter): El usuario presiona F1 en PySide6 y escanea un código.
-
-Puerto de Entrada: La UI llama al caso de uso GetProductByCode.
-
-Lógica (Domain): El Core busca el producto. Si hay una promoción activa (ej: 2x1), el Dominio calcula el descuento.
-
-Puerto de Salida (Secondary Adapter): El Core pide al ProductRepository los datos de MariaDB.
-
-Respuesta: La UI recibe la entidad calculada y refresca la pantalla.
-
-Atomicidad en Ventas: El proceso de "Cerrar Venta" debe ser una transacción única. O se descuenta el stock, se guarda la venta y se registra el dinero en caja, o no se hace nada. Nunca a medias.
-
-Búsqueda "Fuzzy": Los usuarios no siempre escriben bien "Alfajor Jorgito". Implementá búsqueda por similitud en la infraestructura de base de datos para mejorar la UX.
-
-Offline First: La app debe iniciar incluso si no hay internet. El chequeo de licencias o actualizaciones debe ser asincrónico para no trabar la apertura del local a las 8 AM.
-
 
 ¿Qué es la Arquitectura Hexagonal (Ports & Adapters)?
 El concepto central es la Independencia. Imaginá que tu lógica de negocio (cómo calculás el precio de un alfajor con 15% de inflación) es un motor. La Arquitectura Hexagonal dice que ese motor debe funcionar igual si lo conectás a una carcasa de Windows (PySide6), a una página web (FastAPI) o si lo probás solo en un banco de pruebas (Unit Tests).
 
 Los 3 Componentes Clave:
+
 El Core (Dominio): Está en el centro. Aquí viven las reglas del kiosco. No sabe qué es una base de datos ni qué es una ventana. Es Python puro.
 
 Los Puertos (Ports): Son "enchufes" o interfaces. El Core dice: "Yo necesito guardar una venta, no me importa cómo". Define una interfaz SaveSale().
@@ -62,9 +36,7 @@ Adaptador de Entrada: PySide6 captura el teclado y "empuja" datos al Core.
 
 Adaptador de Salida: SQLAlchemy recibe la orden de guardar y la escribe en MariaDB.
 
-¿Por qué te sirve para el Kiosco? Porque si mañana MariaDB se vuelve lenta con 50,000 productos, solo cambiás el Adaptador de Persistencia (por ejemplo a PostgreSQL) y no tocás ni una sola línea de código de tu lógica de ventas.
-
-🗄️ Diseño de Base de Datos (Esquema Senior)
+Diseño de Base de Datos (Esquema Senior)
 Para un sistema POS que debe manejar historial de precios y stock crítico, estas son las columnas esenciales para cada tabla en MariaDB:
 
 1. Tabla: products (El catálogo)
@@ -166,3 +138,34 @@ product_id,INT,FK a products.
 quantity,INT,"Cantidad (positiva para compra, negativa para venta)."
 reason,VARCHAR(50),"""VENTA"", ""COMPRA"", ""ROTURA"", ""AJUSTE""."
 
+
+
+Stack Tecnológico Completo:
+
+Lenguaje y Base de Desarrollo
+Python 3.12+:
+Pydantic v2: Lo usaremos en la capa de Aplicación para validar que los datos que entran (desde la UI o un Excel) sean correctos antes de que lleguen al Core. Es extremadamente rápido (escrito en Rust).
+
+Interfaz de Usuario (The Desktop Adapter)
+PySide6 (Qt for Python): Es la versión oficial de Qt. A diferencia de Tkinter (muy simple) o CustomTkinter, PySide6 permite crear interfaces de grado industrial que se sienten nativas en Windows 11. Soporta QSS (estilos tipo CSS) para que el POS sea visualmente moderno.
+
+Qt Designer: Permite prototipar las ventanas de forma visual, separando el diseño del comportamiento lógico.
+
+Persistencia y Datos (The Infrastructure)
+MariaDB (Community Server): A diferencia de SQLite, MariaDB es un servidor de base de datos real. Soporta transacciones pesadas y permite que, en el futuro, varias cajas (PCs) se conecten a una misma base de datos central en el local sin que el archivo se corrompa.
+
+SQLAlchemy 2.0 (ORM): Usaremos el Mapeo Imperativo. Esto nos permite desacoplar las tablas de la base de datos de nuestras clases de Python. Si mañana decidís subir la base de datos a la nube (AWS/Azure), solo cambiás la cadena de conexión.
+
+Alembic: Es el sistema de "Control de Versiones" para la base de datos. Si agregás una columna "Descuento" a los productos, Alembic actualiza la base de datos en la PC del kiosquero sin borrar sus datos.
+
+Procesamiento y Performance
+Polars: Reemplaza a Pandas. Para un kiosco que recibe una lista de precios de 10,000 productos de un proveedor, Polars procesa ese archivo usando todos los núcleos del procesador. Lo que en Excel tarda un minuto, en Polars tarda milisegundos.
+
+Distribución y DevOps Local
+Nuitka: No es un simple "empaquetador" como PyInstaller. Nuitka compila el código Python a C++. Esto da dos beneficios:
+
+Velocidad: El código corre más rápido.
+
+Seguridad: Hace que sea muy difícil para un tercero "robar" tu código fuente o crackear el sistema.
+
+Inno Setup: Es la herramienta estándar para crear instaladores .exe profesionales en Windows. Permite instalar MariaDB como un servicio automáticamente durante la instalación del POS.

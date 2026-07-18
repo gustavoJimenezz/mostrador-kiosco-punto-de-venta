@@ -1,3 +1,4 @@
+#DEPRECATED
 # Compatibilidad Linux — Kiosco POS
 
 ## Versiones probadas

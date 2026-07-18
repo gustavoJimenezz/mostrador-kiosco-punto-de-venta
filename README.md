@@ -39,7 +39,7 @@ poetry shell
 
 # Requiere Docker corriendo para la base de datos.
 # Configurar variables de entorno
-```
+
 DB_ROOT_PASSWORD=
 DB_NAME=
 DB_PORT=
@@ -76,7 +76,7 @@ La app queda disponible en:
 
 > Docker se usa solo para levantar MariaDB en desarrollo. En producción se instala MariaDB nativo junto con la app.
 
----
+
 
 ---
 
